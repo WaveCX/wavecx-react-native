@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { useEffect, useState } from 'react';
-import { Modal } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Linking, Modal } from 'react-native';
 import WebView from 'react-native-webview';
 
 import { Featurette } from './featurettes';
@@ -17,6 +17,8 @@ export const WaveCxContainer = ({
   triggerPoint?: string;
   readTargetedContent?: FireTargetedContentEvent;
 }) => {
+  const webViewRef = useRef<WebView>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [contentItems, setContentItems] = useState<
     { url: string; slides: FeaturetteSlide[]; presentationStyle: string }[]
@@ -81,7 +83,20 @@ export const WaveCxContainer = ({
             <Featurette slides={activeContentItem.slides} />
           )}
           {activeContentItem.presentationStyle !== 'native' && (
-            <WebView source={{ uri: activeContentItem.url }} bounces={false} />
+            <WebView
+              source={{ uri: activeContentItem.url }}
+              bounces={false}
+              ref={webViewRef}
+              onNavigationStateChange={(event) => {
+                if (
+                  event.url.split('//')[1]?.split('/')[0] !==
+                  activeContentItem?.url.split('//')[1]?.split('/')[0]
+                ) {
+                  webViewRef.current?.stopLoading();
+                  Linking.openURL(event.url);
+                }
+              }}
+            />
           )}
         </Modal>
       )}
