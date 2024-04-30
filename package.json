@@ -155,5 +155,8 @@
         }
       ]
     ]
+  },
+  "dependencies": {
+    "react-native-webview": "^13.8.6"
   }
 }
