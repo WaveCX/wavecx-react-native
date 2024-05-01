@@ -12,6 +12,8 @@ import {
 
 import { WaveCxProvider, useWaveCx } from 'wavecx-react-native';
 
+import { createUserIdVerification } from './user-id-verification';
+
 export default function AppWrapper() {
   return (
     <WaveCxProvider
@@ -34,8 +36,9 @@ const App = () => {
       handleEvent({
         type: 'session-started',
         userId,
+        userIdVerification: createUserIdVerification(userId),
       });
-      handleEvent({ type: 'trigger-point', triggerPoint: 'trigger-one' });
+      handleEvent({ type: 'trigger-point', triggerPoint: 'account-view' });
     } else {
       handleEvent({ type: 'session-ended' });
     }
@@ -67,29 +70,29 @@ const App = () => {
             <Text>Signed in as {userId}</Text>
             <Button title={'Sign Out'} onPress={() => setUserId(undefined)} />
             <Button
-              title={'Trigger One'}
+              title={'Account View'}
               onPress={() =>
                 handleEvent({
                   type: 'trigger-point',
-                  triggerPoint: 'trigger-one',
+                  triggerPoint: 'account-view',
                 })
               }
             />
             <Button
-              title={'Trigger Two'}
+              title={'Financial Wellness'}
               onPress={() =>
                 handleEvent({
                   type: 'trigger-point',
-                  triggerPoint: 'trigger-two',
+                  triggerPoint: 'financial-wellness',
                 })
               }
             />
             <Button
-              title={'Trigger Three'}
+              title={'Payments'}
               onPress={() =>
                 handleEvent({
                   type: 'trigger-point',
-                  triggerPoint: 'trigger-three',
+                  triggerPoint: 'payments',
                 })
               }
             />
