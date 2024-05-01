@@ -26,6 +26,7 @@ export const composeFireTargetedContentEventViaApi =
           userId: options.userId,
           userIdVerification: options.userIdVerification,
           triggerPoint: options.triggerPoint,
+          platform: 'mobile',
         }),
       }
     );
