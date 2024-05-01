@@ -1,88 +1,125 @@
 import * as React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import type { ReactNode } from 'react';
 import { Linking, Modal } from 'react-native';
 import WebView from 'react-native-webview';
 
 import { Featurette } from './featurettes';
 import type { FeaturetteSlide } from './featurettes';
-import { fireTargetedContentEventViaApi } from './targeted-content';
+import { composeFireTargetedContentEventViaApi } from './targeted-content';
 import type { FireTargetedContentEvent } from './targeted-content';
 
-export const WaveCxContainer = ({
-  readTargetedContent = fireTargetedContentEventViaApi,
-  ...props
-}: {
+type EventHandler = (
+  event:
+    | { type: 'session-started'; userId: string; userIdVerification?: string }
+    | { type: 'session-ended' }
+    | { type: 'trigger-point'; triggerPoint: string }
+) => void;
+
+type WaveCxContext = {
+  handleEvent: EventHandler;
+};
+
+const WaveCxContext = createContext<WaveCxContext | undefined>(undefined);
+
+export const WaveCxProvider = (props: {
   organizationCode: string;
-  userId?: string;
-  triggerPoint?: string;
-  readTargetedContent?: FireTargetedContentEvent;
+  children?: ReactNode;
+  apiBaseUrl?: string;
+  recordEvent?: FireTargetedContentEvent;
 }) => {
+  const recordEvent = useMemo(
+    () =>
+      props.recordEvent ??
+      composeFireTargetedContentEventViaApi({
+        apiBaseUrl: props.apiBaseUrl ?? 'https://api.wavecx.com',
+      }),
+    [props.recordEvent, props.apiBaseUrl]
+  );
+
   const webViewRef = useRef<WebView>(null);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<
+    undefined | { id: string; idVerification?: string }
+  >(undefined);
   const [contentItems, setContentItems] = useState<
     { url: string; slides: FeaturetteSlide[]; presentationStyle: string }[]
   >([]);
   const activeContentItem =
     contentItems.length > 0 ? contentItems[0] : undefined;
 
-  useEffect(() => {
-    (async () => {
-      if (!props.userId || !props.triggerPoint) {
-        return;
-      }
+  const handleEvent = useCallback<EventHandler>(
+    async (event) => {
+      if (event.type === 'session-started' && user?.id !== event.userId) {
+        setUser({
+          id: event.userId,
+          idVerification: event.userIdVerification,
+        });
+      } else if (event.type === 'session-ended') {
+        setUser(undefined);
+      } else if (event.type === 'trigger-point') {
+        if (!user) {
+          return;
+        }
 
-      setIsLoading(true);
-      const targetedContentResult = await readTargetedContent({
-        type: 'trigger-point',
-        organizationCode: props.organizationCode,
-        userId: props.userId,
-        triggerPoint: props.triggerPoint,
-      });
-      setContentItems(
-        targetedContentResult.content.map((item: any) => ({
-          presentationStyle: item.presentationStyle,
-          url: item.viewUrl,
-          slides:
-            item.presentationStyle !== 'native'
-              ? []
-              : item.content
-                  .sort((a: any, b: any) =>
-                    a.sortIndex < b.sortIndex ? -1 : 1
-                  )
-                  .map((c: any) => ({
-                    content: c.hasBlockContent
-                      ? { type: 'blocks', blocks: c.smallAspectContentBlocks }
-                      : {
-                          type: 'basic',
-                          bodyHtml: c.smallAspectFeatureBody,
-                          imageUrl: c.smallAspectPreviewImage?.url,
-                        },
-                  })),
-        }))
-      );
-      setIsLoading(false);
-    })();
-  }, [
-    props.userId,
-    props.triggerPoint,
-    props.organizationCode,
-    readTargetedContent,
-  ]);
+        const targetedContentResult = await recordEvent({
+          type: 'trigger-point',
+          organizationCode: props.organizationCode,
+          userId: user.id,
+          userIdVerification: user.idVerification,
+          triggerPoint: event.triggerPoint,
+        });
+        setContentItems(
+          targetedContentResult.content.map((item: any) => ({
+            presentationStyle: item.presentationStyle,
+            url: item.viewUrl,
+            slides:
+              item.presentationStyle !== 'native'
+                ? []
+                : item.content
+                    .sort((a: any, b: any) =>
+                      a.sortIndex < b.sortIndex ? -1 : 1
+                    )
+                    .map((c: any) => ({
+                      content: c.hasBlockContent
+                        ? {
+                            type: 'blocks',
+                            blocks: c.smallAspectContentBlocks,
+                          }
+                        : {
+                            type: 'basic',
+                            bodyHtml: c.smallAspectFeatureBody,
+                            imageUrl: c.smallAspectPreviewImage?.url,
+                          },
+                    })),
+          }))
+        );
+      }
+    },
+    [props.organizationCode, recordEvent, user]
+  );
 
   return (
-    <>
-      {activeContentItem && (
-        <Modal
-          visible={contentItems.length > 0 && !isLoading}
-          presentationStyle={'pageSheet'}
-          onRequestClose={() => setContentItems([])}
-          animationType={'slide'}
-        >
-          {activeContentItem.presentationStyle === 'native' && (
+    <WaveCxContext.Provider value={{ handleEvent }}>
+      <Modal
+        visible={activeContentItem !== undefined}
+        presentationStyle={'pageSheet'}
+        onRequestClose={() => setContentItems([])}
+        animationType={'slide'}
+      >
+        {activeContentItem &&
+          activeContentItem.presentationStyle === 'native' && (
             <Featurette slides={activeContentItem.slides} />
           )}
-          {activeContentItem.presentationStyle !== 'native' && (
+        {activeContentItem &&
+          activeContentItem.presentationStyle !== 'native' && (
             <WebView
               source={{ uri: activeContentItem.url }}
               bounces={false}
@@ -98,8 +135,19 @@ export const WaveCxContainer = ({
               }}
             />
           )}
-        </Modal>
-      )}
-    </>
+      </Modal>
+
+      {props.children}
+    </WaveCxContext.Provider>
   );
+};
+
+export const useWaveCx = () => {
+  const context = useContext(WaveCxContext);
+  if (!context) {
+    throw new Error(
+      `${useWaveCx.name} must be used in a WaveCx context provider`
+    );
+  }
+  return context;
 };

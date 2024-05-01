@@ -22,7 +22,7 @@ export const composeFireTargetedContentEventViaApi =
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'session-started',
+          type: options.type,
           userId: options.userId,
           userIdVerification: options.userIdVerification,
           triggerPoint: options.triggerPoint,
@@ -34,5 +34,5 @@ export const composeFireTargetedContentEventViaApi =
 
 export const fireTargetedContentEventViaApi =
   composeFireTargetedContentEventViaApi({
-    apiBaseUrl: 'http://localhost',
+    apiBaseUrl: 'https://api.wavecx.com',
   });

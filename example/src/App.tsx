@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   Text,
@@ -10,12 +10,36 @@ import {
   View,
 } from 'react-native';
 
-import { WaveCxContainer } from 'wavecx-react-native';
+import { WaveCxProvider, useWaveCx } from 'wavecx-react-native';
 
-export default function App() {
+export default function AppWrapper() {
+  return (
+    <WaveCxProvider
+      organizationCode={process.env.EXPO_PUBLIC_ORGANIZATION_CODE ?? ''}
+      apiBaseUrl={process.env.EXPO_PUBLIC_API_URL}
+    >
+      <App />
+    </WaveCxProvider>
+  );
+}
+
+const App = () => {
+  const { handleEvent } = useWaveCx();
+
   const [userId, setUserId] = useState<string | undefined>(undefined);
   const [userIdInput, setUserIdInput] = useState<string>('');
-  const [triggerPoint, setTriggerPoint] = useState('trigger-one');
+
+  useEffect(() => {
+    if (userId) {
+      handleEvent({
+        type: 'session-started',
+        userId,
+      });
+      handleEvent({ type: 'trigger-point', triggerPoint: 'trigger-one' });
+    } else {
+      handleEvent({ type: 'session-ended' });
+    }
+  }, [userId, handleEvent]);
 
   return (
     <View>
@@ -31,8 +55,9 @@ export default function App() {
             />
             <Button
               title={'Sign In'}
-              onPress={() => setUserId(userIdInput)}
-              // ref={(b) => (button2Ref.current = b)}
+              onPress={() => {
+                setUserId(userIdInput);
+              }}
             />
           </>
         )}
@@ -43,28 +68,37 @@ export default function App() {
             <Button title={'Sign Out'} onPress={() => setUserId(undefined)} />
             <Button
               title={'Trigger One'}
-              onPress={() => setTriggerPoint('trigger-one')}
+              onPress={() =>
+                handleEvent({
+                  type: 'trigger-point',
+                  triggerPoint: 'trigger-one',
+                })
+              }
             />
             <Button
               title={'Trigger Two'}
-              onPress={() => setTriggerPoint('trigger-two')}
+              onPress={() =>
+                handleEvent({
+                  type: 'trigger-point',
+                  triggerPoint: 'trigger-two',
+                })
+              }
             />
             <Button
               title={'Trigger Three'}
-              onPress={() => setTriggerPoint('trigger-three')}
+              onPress={() =>
+                handleEvent({
+                  type: 'trigger-point',
+                  triggerPoint: 'trigger-three',
+                })
+              }
             />
           </>
         )}
       </SafeAreaView>
-
-      <WaveCxContainer
-        userId={userId}
-        triggerPoint={triggerPoint}
-        organizationCode={'tenant'}
-      />
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   input: {
