@@ -11,8 +11,6 @@ import type { ReactNode } from 'react';
 import { Linking, Modal } from 'react-native';
 import WebView from 'react-native-webview';
 
-import { Featurette } from './featurettes';
-import type { FeaturetteSlide } from './featurettes';
 import { composeFireTargetedContentEventViaApi } from './targeted-content';
 import type { FireTargetedContentEvent } from './targeted-content';
 
@@ -50,7 +48,7 @@ export const WaveCxProvider = (props: {
     undefined | { id: string; idVerification?: string }
   >(undefined);
   const [contentItems, setContentItems] = useState<
-    { url: string; slides: FeaturetteSlide[]; presentationStyle: string }[]
+    { url: string; presentationStyle: string }[]
   >([]);
   const activeContentItem =
     contentItems.length > 0 ? contentItems[0] : undefined;
@@ -114,27 +112,22 @@ export const WaveCxProvider = (props: {
         onRequestClose={() => setContentItems([])}
         animationType={'slide'}
       >
-        {activeContentItem &&
-          activeContentItem.presentationStyle === 'native' && (
-            <Featurette slides={activeContentItem.slides} />
-          )}
-        {activeContentItem &&
-          activeContentItem.presentationStyle !== 'native' && (
-            <WebView
-              source={{ uri: activeContentItem.url }}
-              bounces={false}
-              ref={webViewRef}
-              onNavigationStateChange={(event) => {
-                if (
-                  event.url.split('//')[1]?.split('/')[0] !==
-                  activeContentItem?.url.split('//')[1]?.split('/')[0]
-                ) {
-                  webViewRef.current?.stopLoading();
-                  Linking.openURL(event.url);
-                }
-              }}
-            />
-          )}
+        {activeContentItem && (
+          <WebView
+            source={{ uri: activeContentItem.url }}
+            bounces={false}
+            ref={webViewRef}
+            onNavigationStateChange={(event) => {
+              if (
+                event.url.split('//')[1]?.split('/')[0] !==
+                activeContentItem?.url.split('//')[1]?.split('/')[0]
+              ) {
+                webViewRef.current?.stopLoading();
+                Linking.openURL(event.url);
+              }
+            }}
+          />
+        )}
       </Modal>
 
       {props.children}
