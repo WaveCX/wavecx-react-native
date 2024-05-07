@@ -2,7 +2,7 @@
 WaveCX React Native library
 
 ## Installation
-npm i wavecx-react-native
+`npm i wavecx-react-native`
 
 ## Usage
 Please see ./example
