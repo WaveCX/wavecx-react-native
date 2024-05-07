@@ -62,6 +62,7 @@ export const WaveCxProvider = (props: {
         });
       } else if (event.type === 'session-ended') {
         setUser(undefined);
+        setContentItems([]);
       } else if (event.type === 'trigger-point') {
         if (!user) {
           return;
