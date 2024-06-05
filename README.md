@@ -103,5 +103,35 @@ should no longer be handled for a previously identified user.
 handleEvent({ type: 'session-ended' });
 ```
 
+## API
+
+### WaveCxProvider
+`WaveCxProvider` provides a context for WaveCX events to be raised.
+`WaveCxProvider` should be placed as high as possible in the
+application tree.
+#### Props
+| name             | type   | description                                                                                                      | required | default                                                         |
+|------------------|--------|------------------------------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
+| organizationCode | string | code identifying your organization in WaveCX (i.e. the "slug" of your API URL -- https://api.wavecx.com/your-org) | true     |                                                                 |
+| apiBaseUrl       | string | base URL which API calls are made to                                                                             | false    | https://api.wavecx.com                                          |
+| recordEvent | function (FireTargetedContentEvent) | function to record a raised event, returning relevant content | false | fireTargetedContentEventViaApi (makes real calls to WaveCX API) |
+#### Types
+```ts
+type TargetedContent = {
+  triggerPoint: string;
+  type: 'featurette';
+  presentationType: 'popup' | 'button-triggered';
+  viewUrl: string;
+};
+
+type FireTargetedContentEvent = (options: {
+  type: 'session-started' | 'trigger-point';
+  triggerPoint?: string;
+  organizationCode: string;
+  userId: string;
+  userIdVerification?: string;
+}) => Promise<{ content: TargetedContent[] }>;
+```
+
 ## Example Application
 An example application is available at https://github.com/WaveCX/wavecx-react-native/tree/main/example
