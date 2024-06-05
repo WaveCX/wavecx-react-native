@@ -110,11 +110,11 @@ handleEvent({ type: 'session-ended' });
 `WaveCxProvider` should be placed as high as possible in the
 application tree.
 #### Props
-| name             | type   | description                                                                                                      | required | default                                                         |
-|------------------|--------|------------------------------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
-| organizationCode | string | code identifying your organization in WaveCX (i.e. the "slug" of your API URL -- https://api.wavecx.com/your-org) | true     |                                                                 |
-| apiBaseUrl       | string | base URL which API calls are made to                                                                             | false    | https://api.wavecx.com                                          |
-| recordEvent | function (FireTargetedContentEvent) | function to record a raised event, returning relevant content | false | fireTargetedContentEventViaApi (makes real calls to WaveCX API) |
+| name             | type                                | description                                                                                                                     | required | default                                                         |
+|------------------|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
+| organizationCode | string                              | code identifying your organization in WaveCX (i.e. the "slug" of your API URL -- "your-org" in https://api.wavecx.com/your-org) | true     |                                                                 |
+| apiBaseUrl       | string                              | base URL which API calls are made to                                                                                            | false    | https://api.wavecx.com                                          |
+| recordEvent      | function (FireTargetedContentEvent) | function to record a raised event, returning relevant content                                                                   | false    | fireTargetedContentEventViaApi (makes real calls to WaveCX API) |
 #### Types
 ```ts
 type TargetedContent = {
