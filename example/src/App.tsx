@@ -25,6 +25,13 @@ export default function AppWrapper() {
   );
 }
 
+const triggerPointOne =
+  process.env.EXPO_PUBLIC_TRIGGER_POINT_ONE ?? 'account-view';
+const triggerPointTwo =
+  process.env.EXPO_PUBLIC_TRIGGER_POINT_TWO ?? 'financial-wellness';
+const triggerPointThree =
+  process.env.EXPO_PUBLIC_TRIGGER_POINT_THREE ?? 'payments';
+
 const App = () => {
   const { handleEvent } = useWaveCx();
 
@@ -37,8 +44,11 @@ const App = () => {
         type: 'session-started',
         userId,
         userIdVerification: createUserIdVerification(userId),
+        userAttributes: {
+          creditScore: 800,
+        },
       });
-      handleEvent({ type: 'trigger-point', triggerPoint: 'account-view' });
+      handleEvent({ type: 'trigger-point', triggerPoint: triggerPointOne });
     } else {
       handleEvent({ type: 'session-ended' });
     }
@@ -74,7 +84,7 @@ const App = () => {
               onPress={() =>
                 handleEvent({
                   type: 'trigger-point',
-                  triggerPoint: 'account-view',
+                  triggerPoint: triggerPointOne,
                 })
               }
             />
@@ -83,7 +93,7 @@ const App = () => {
               onPress={() =>
                 handleEvent({
                   type: 'trigger-point',
-                  triggerPoint: 'financial-wellness',
+                  triggerPoint: triggerPointTwo,
                 })
               }
             />
@@ -92,7 +102,7 @@ const App = () => {
               onPress={() =>
                 handleEvent({
                   type: 'trigger-point',
-                  triggerPoint: 'payments',
+                  triggerPoint: triggerPointThree,
                 })
               }
             />

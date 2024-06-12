@@ -16,7 +16,12 @@ import type { FireTargetedContentEvent } from './targeted-content';
 
 type EventHandler = (
   event:
-    | { type: 'session-started'; userId: string; userIdVerification?: string }
+    | {
+        type: 'session-started';
+        userId: string;
+        userIdVerification?: string;
+        userAttributes?: object;
+      }
     | { type: 'session-ended' }
     | { type: 'trigger-point'; triggerPoint: string }
 ) => void;
@@ -45,7 +50,7 @@ export const WaveCxProvider = (props: {
   const webViewRef = useRef<WebView>(null);
 
   const [user, setUser] = useState<
-    undefined | { id: string; idVerification?: string }
+    undefined | { id: string; idVerification?: string; attributes?: object }
   >(undefined);
   const [contentItems, setContentItems] = useState<
     { url: string; presentationStyle: string }[]
@@ -59,6 +64,7 @@ export const WaveCxProvider = (props: {
         setUser({
           id: event.userId,
           idVerification: event.userIdVerification,
+          attributes: event.userAttributes,
         });
       } else if (event.type === 'session-ended') {
         setUser(undefined);
@@ -74,6 +80,7 @@ export const WaveCxProvider = (props: {
           userId: user.id,
           userIdVerification: user.idVerification,
           triggerPoint: event.triggerPoint,
+          userAttributes: user.attributes,
         });
         setContentItems(
           targetedContentResult.content.map((item: any) => ({
