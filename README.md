@@ -27,6 +27,9 @@ const Main = () => {
       type: 'session-started',
       userId: 'user-id',
       userIdVerification: createUserIdVerification('user-id'),
+      userAttributes: {
+        creditScore: 800,
+      },
     });
   }, []);
 
@@ -62,6 +65,9 @@ handleEvent({
   type: 'session-started',
   userId: 'user-id',
   userIdVerification: createUserIdVerification('user-id'),
+  userAttributes: {
+    // your user attributes
+  },
 });
 ```
 
@@ -130,6 +136,7 @@ type FireTargetedContentEvent = (options: {
   organizationCode: string;
   userId: string;
   userIdVerification?: string;
+  userAttributes?: object;
 }) => Promise<{ content: TargetedContent[] }>;
 ```
 
