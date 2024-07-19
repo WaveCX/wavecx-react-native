@@ -105,8 +105,16 @@ indicating if the current trigger point has user-triggered
 content available. To present this content, a `user-triggered-content`
 event should be fired:
 
-```ts
-handleEvent({ type: 'user-triggered-content' });
+```tsx
+const { handleEvent, hasUserTriggeredContent } = useWaveCx();
+
+// in render
+{hasUserTriggeredContent && (
+  <Button
+    title={'User-Triggered Content'}
+    onPress={() => handleEvent({ type: 'user-triggered-content' })}
+  />
+)}
 ```
 
 ### Session Ended Events
