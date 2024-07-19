@@ -99,6 +99,16 @@ When a trigger-point event is raised, WaveCX will check for and
 present any content set for that trigger point that is relevant
 for the current user.
 
+### User-Triggered Content
+The WaveCX context provides a boolean value `hasUserTriggeredContent`
+indicating if the current trigger point has user-triggered
+content available. To present this content, a `user-triggered-content`
+event should be fired:
+
+```ts
+handleEvent({ type: 'user-triggered-content' });
+```
+
 ### Session Ended Events
 If trigger points may still be reached in your application
 after the user is no longer authenticated, a session ended
@@ -131,7 +141,7 @@ type TargetedContent = {
 };
 
 type FireTargetedContentEvent = (options: {
-  type: 'session-started' | 'trigger-point';
+  type: 'session-started' | 'session-ended' | 'trigger-point' | 'user-triggered-content';
   triggerPoint?: string;
   organizationCode: string;
   userId: string;

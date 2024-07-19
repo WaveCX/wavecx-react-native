@@ -24,10 +24,12 @@ type EventHandler = (
       }
     | { type: 'session-ended' }
     | { type: 'trigger-point'; triggerPoint: string }
+    | { type: 'user-triggered-content' }
 ) => void;
 
 type WaveCxContext = {
   handleEvent: EventHandler;
+  hasUserTriggeredContent: boolean;
 };
 
 const WaveCxContext = createContext<WaveCxContext | undefined>(undefined);
@@ -55,8 +57,18 @@ export const WaveCxProvider = (props: {
   const [contentItems, setContentItems] = useState<
     { url: string; presentationStyle: string }[]
   >([]);
+  const [userTriggeredContentItems, setUserTriggeredContentItems] = useState<
+    { url: string }[]
+  >([]);
+  const [isUserTriggeredContentShown, setIsUserTriggeredContentShown] =
+    useState(false);
+
   const activeContentItem =
-    contentItems.length > 0 ? contentItems[0] : undefined;
+    contentItems.length > 0
+      ? contentItems[0]
+      : isUserTriggeredContentShown && userTriggeredContentItems.length > 0
+        ? userTriggeredContentItems[0]
+        : undefined;
 
   const handleEvent = useCallback<EventHandler>(
     async (event) => {
@@ -69,6 +81,8 @@ export const WaveCxProvider = (props: {
       } else if (event.type === 'session-ended') {
         setUser(undefined);
         setContentItems([]);
+      } else if (event.type === 'user-triggered-content') {
+        setIsUserTriggeredContentShown(true);
       } else if (event.type === 'trigger-point') {
         if (!user) {
           return;
@@ -83,29 +97,58 @@ export const WaveCxProvider = (props: {
           userAttributes: user.attributes,
         });
         setContentItems(
-          targetedContentResult.content.map((item: any) => ({
-            presentationStyle: item.presentationStyle,
-            url: item.viewUrl,
-            slides:
-              item.presentationStyle !== 'native'
-                ? []
-                : item.content
-                    .sort((a: any, b: any) =>
-                      a.sortIndex < b.sortIndex ? -1 : 1
-                    )
-                    .map((c: any) => ({
-                      content: c.hasBlockContent
-                        ? {
-                            type: 'blocks',
-                            blocks: c.smallAspectContentBlocks,
-                          }
-                        : {
-                            type: 'basic',
-                            bodyHtml: c.smallAspectFeatureBody,
-                            imageUrl: c.smallAspectPreviewImage?.url,
-                          },
-                    })),
-          }))
+          targetedContentResult.content
+            .filter((item: any) => item.presentationType === 'popup')
+            .map((item: any) => ({
+              presentationStyle: item.presentationStyle,
+              url: item.viewUrl,
+              slides:
+                item.presentationStyle !== 'native'
+                  ? []
+                  : item.content
+                      .sort((a: any, b: any) =>
+                        a.sortIndex < b.sortIndex ? -1 : 1
+                      )
+                      .map((c: any) => ({
+                        content: c.hasBlockContent
+                          ? {
+                              type: 'blocks',
+                              blocks: c.smallAspectContentBlocks,
+                            }
+                          : {
+                              type: 'basic',
+                              bodyHtml: c.smallAspectFeatureBody,
+                              imageUrl: c.smallAspectPreviewImage?.url,
+                            },
+                      })),
+            }))
+        );
+        setUserTriggeredContentItems(
+          targetedContentResult.content
+            .filter((item: any) => item.presentationType === 'button-triggered')
+            .map((item: any) => ({
+              presentationStyle: item.presentationStyle,
+              url: item.viewUrl,
+              slides:
+                item.presentationStyle !== 'native'
+                  ? []
+                  : item.content
+                      .sort((a: any, b: any) =>
+                        a.sortIndex < b.sortIndex ? -1 : 1
+                      )
+                      .map((c: any) => ({
+                        content: c.hasBlockContent
+                          ? {
+                              type: 'blocks',
+                              blocks: c.smallAspectContentBlocks,
+                            }
+                          : {
+                              type: 'basic',
+                              bodyHtml: c.smallAspectFeatureBody,
+                              imageUrl: c.smallAspectPreviewImage?.url,
+                            },
+                      })),
+            }))
         );
       }
     },
@@ -113,11 +156,22 @@ export const WaveCxProvider = (props: {
   );
 
   return (
-    <WaveCxContext.Provider value={{ handleEvent }}>
+    <WaveCxContext.Provider
+      value={{
+        handleEvent,
+        hasUserTriggeredContent: userTriggeredContentItems.length > 0,
+      }}
+    >
       <Modal
         visible={activeContentItem !== undefined}
         presentationStyle={'pageSheet'}
-        onRequestClose={() => setContentItems([])}
+        onRequestClose={() => {
+          if (isUserTriggeredContentShown) {
+            setIsUserTriggeredContentShown(false);
+          } else {
+            setContentItems([]);
+          }
+        }}
         animationType={'slide'}
       >
         {activeContentItem && (
