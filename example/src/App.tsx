@@ -33,7 +33,7 @@ const triggerPointThree =
   process.env.EXPO_PUBLIC_TRIGGER_POINT_THREE ?? 'payments';
 
 const App = () => {
-  const { handleEvent } = useWaveCx();
+  const { handleEvent, hasUserTriggeredContent } = useWaveCx();
 
   const [userId, setUserId] = useState<string | undefined>(undefined);
   const [userIdInput, setUserIdInput] = useState<string>('');
@@ -106,6 +106,13 @@ const App = () => {
                 })
               }
             />
+
+            {hasUserTriggeredContent && (
+              <Button
+                title={'User-Triggered Content'}
+                onPress={() => handleEvent({ type: 'user-triggered-content' })}
+              />
+            )}
           </>
         )}
       </SafeAreaView>
