@@ -84,6 +84,9 @@ export const WaveCxProvider = (props: {
       } else if (event.type === 'user-triggered-content') {
         setIsUserTriggeredContentShown(true);
       } else if (event.type === 'trigger-point') {
+        setContentItems([]);
+        setUserTriggeredContentItems([]);
+
         if (!user) {
           return;
         }
