@@ -8,7 +8,14 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
-import { Linking, Modal } from 'react-native';
+import {
+  Linking,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import WebView from 'react-native-webview';
 
 import { composeFireTargetedContentEventViaApi } from './targeted-content';
@@ -177,6 +184,21 @@ export const WaveCxProvider = (props: {
         }}
         animationType={'slide'}
       >
+        <View style={styles.header}>
+          <View style={styles.headerStart} />
+          <View>
+            <Text style={{ fontWeight: 'bold' }}>What&rsquo;s New</Text>
+          </View>
+          <Pressable
+            style={styles.closeButton}
+            onPress={() => {
+              setIsUserTriggeredContentShown(false);
+              setContentItems([]);
+            }}
+          >
+            <Text>Close</Text>
+          </Pressable>
+        </View>
         {activeContentItem && (
           <WebView
             source={{ uri: activeContentItem.url }}
@@ -199,6 +221,24 @@ export const WaveCxProvider = (props: {
     </WaveCxContext.Provider>
   );
 };
+
+const styles = StyleSheet.create({
+  header: {
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomColor: '#eee',
+    borderBottomWidth: 1,
+    backgroundColor: '#fafafa',
+  },
+  closeButton: {
+    width: 40,
+  },
+  headerStart: {
+    width: 40,
+  },
+});
 
 export const useWaveCx = () => {
   const context = useContext(WaveCxContext);
