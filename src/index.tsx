@@ -30,8 +30,15 @@ type EventHandler = (
         userAttributes?: object;
       }
     | { type: 'session-ended' }
-    | { type: 'trigger-point'; triggerPoint: string }
-    | { type: 'user-triggered-content' }
+    | {
+        type: 'trigger-point';
+        triggerPoint: string;
+        onContentDismissed?: () => void;
+      }
+    | {
+        type: 'user-triggered-content';
+        onContentDismissed?: () => void;
+      }
 ) => void;
 
 type WaveCxContext = {
@@ -57,6 +64,9 @@ export const WaveCxProvider = (props: {
   );
 
   const webViewRef = useRef<WebView>(null);
+  const onContentDismissedCallback = useRef<(() => void) | undefined>(
+    undefined
+  );
 
   const [user, setUser] = useState<
     undefined | { id: string; idVerification?: string; attributes?: object }
@@ -79,6 +89,8 @@ export const WaveCxProvider = (props: {
 
   const handleEvent = useCallback<EventHandler>(
     async (event) => {
+      onContentDismissedCallback.current = undefined;
+
       if (event.type === 'session-started' && user?.id !== event.userId) {
         setUser({
           id: event.userId,
@@ -90,9 +102,11 @@ export const WaveCxProvider = (props: {
         setContentItems([]);
       } else if (event.type === 'user-triggered-content') {
         setIsUserTriggeredContentShown(true);
+        onContentDismissedCallback.current = event.onContentDismissed;
       } else if (event.type === 'trigger-point') {
         setContentItems([]);
         setUserTriggeredContentItems([]);
+        onContentDismissedCallback.current = event.onContentDismissed;
 
         if (!user) {
           return;
@@ -181,6 +195,7 @@ export const WaveCxProvider = (props: {
           } else {
             setContentItems([]);
           }
+          onContentDismissedCallback.current?.();
         }}
         animationType={'slide'}
       >
@@ -194,6 +209,7 @@ export const WaveCxProvider = (props: {
             onPress={() => {
               setIsUserTriggeredContentShown(false);
               setContentItems([]);
+              onContentDismissedCallback.current?.();
             }}
           >
             <Text>Close</Text>
