@@ -21,25 +21,25 @@ import WebView from 'react-native-webview';
 import { composeFireTargetedContentEventViaApi } from './targeted-content';
 import type { FireTargetedContentEvent } from './targeted-content';
 
-type EventHandler = (
-  event:
-    | {
-        type: 'session-started';
-        userId: string;
-        userIdVerification?: string;
-        userAttributes?: object;
-      }
-    | { type: 'session-ended' }
-    | {
-        type: 'trigger-point';
-        triggerPoint: string;
-        onContentDismissed?: () => void;
-      }
-    | {
-        type: 'user-triggered-content';
-        onContentDismissed?: () => void;
-      }
-) => void;
+export type Event =
+  | {
+      type: 'session-started';
+      userId: string;
+      userIdVerification?: string;
+      userAttributes?: object;
+    }
+  | { type: 'session-ended' }
+  | {
+      type: 'trigger-point';
+      triggerPoint: string;
+      onContentDismissed?: () => void;
+    }
+  | {
+      type: 'user-triggered-content';
+      onContentDismissed?: () => void;
+    };
+
+export type EventHandler = (event: Event) => void;
 
 type WaveCxContext = {
   handleEvent: EventHandler;
