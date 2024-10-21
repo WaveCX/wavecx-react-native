@@ -9,17 +9,22 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import {
+  ActivityIndicator,
   Linking,
   Modal,
   Pressable,
+  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import WebView from 'react-native-webview';
 
-import { composeFireTargetedContentEventViaApi } from './targeted-content';
-import type { FireTargetedContentEvent } from './targeted-content';
+import {
+  composeFireTargetedContentEventViaApi,
+  type TargetedContent,
+  type FireTargetedContentEvent,
+} from './targeted-content';
 
 export type Event =
   | {
@@ -71,14 +76,13 @@ export const WaveCxProvider = (props: {
   const [user, setUser] = useState<
     undefined | { id: string; idVerification?: string; attributes?: object }
   >(undefined);
-  const [contentItems, setContentItems] = useState<
-    { url: string; presentationStyle: string }[]
-  >([]);
+  const [contentItems, setContentItems] = useState<TargetedContent[]>([]);
   const [userTriggeredContentItems, setUserTriggeredContentItems] = useState<
-    { url: string }[]
+    TargetedContent[]
   >([]);
   const [isUserTriggeredContentShown, setIsUserTriggeredContentShown] =
     useState(false);
+  const [isRemoteContentReady, setIsRemoteContentReady] = useState(false);
 
   const activeContentItem =
     contentItems.length > 0
@@ -121,58 +125,14 @@ export const WaveCxProvider = (props: {
           userAttributes: user.attributes,
         });
         setContentItems(
-          targetedContentResult.content
-            .filter((item: any) => item.presentationType === 'popup')
-            .map((item: any) => ({
-              presentationStyle: item.presentationStyle,
-              url: item.viewUrl,
-              slides:
-                item.presentationStyle !== 'native'
-                  ? []
-                  : item.content
-                      .sort((a: any, b: any) =>
-                        a.sortIndex < b.sortIndex ? -1 : 1
-                      )
-                      .map((c: any) => ({
-                        content: c.hasBlockContent
-                          ? {
-                              type: 'blocks',
-                              blocks: c.smallAspectContentBlocks,
-                            }
-                          : {
-                              type: 'basic',
-                              bodyHtml: c.smallAspectFeatureBody,
-                              imageUrl: c.smallAspectPreviewImage?.url,
-                            },
-                      })),
-            }))
+          targetedContentResult.content.filter(
+            (item: any) => item.presentationType === 'popup'
+          )
         );
         setUserTriggeredContentItems(
-          targetedContentResult.content
-            .filter((item: any) => item.presentationType === 'button-triggered')
-            .map((item: any) => ({
-              presentationStyle: item.presentationStyle,
-              url: item.viewUrl,
-              slides:
-                item.presentationStyle !== 'native'
-                  ? []
-                  : item.content
-                      .sort((a: any, b: any) =>
-                        a.sortIndex < b.sortIndex ? -1 : 1
-                      )
-                      .map((c: any) => ({
-                        content: c.hasBlockContent
-                          ? {
-                              type: 'blocks',
-                              blocks: c.smallAspectContentBlocks,
-                            }
-                          : {
-                              type: 'basic',
-                              bodyHtml: c.smallAspectFeatureBody,
-                              imageUrl: c.smallAspectPreviewImage?.url,
-                            },
-                      })),
-            }))
+          targetedContentResult.content.filter(
+            (item: any) => item.presentationType === 'button-triggered'
+          )
         );
       }
     },
@@ -188,48 +148,135 @@ export const WaveCxProvider = (props: {
     >
       <Modal
         visible={activeContentItem !== undefined}
-        presentationStyle={'pageSheet'}
+        presentationStyle={activeContentItem?.mobileModal?.type ?? 'pageSheet'}
         onRequestClose={() => {
           if (isUserTriggeredContentShown) {
             setIsUserTriggeredContentShown(false);
           } else {
             setContentItems([]);
           }
+          setIsRemoteContentReady(false);
           onContentDismissedCallback.current?.();
         }}
         animationType={'slide'}
       >
-        <View style={styles.header}>
-          <View style={styles.headerStart} />
-          <View>
-            <Text style={{ fontWeight: 'bold' }}>What&rsquo;s New</Text>
-          </View>
-          <Pressable
-            style={styles.closeButton}
-            onPress={() => {
-              setIsUserTriggeredContentShown(false);
-              setContentItems([]);
-              onContentDismissedCallback.current?.();
-            }}
-          >
-            <Text>Close</Text>
-          </Pressable>
-        </View>
         {activeContentItem && (
-          <WebView
-            source={{ uri: activeContentItem.url }}
-            bounces={false}
-            ref={webViewRef}
-            onNavigationStateChange={(event) => {
-              if (
-                event.url.split('//')[1]?.split('/')[0] !==
-                activeContentItem?.url.split('//')[1]?.split('/')[0]
-              ) {
-                webViewRef.current?.stopLoading();
-                Linking.openURL(event.url);
-              }
-            }}
-          />
+          <>
+            {activeContentItem.mobileModal?.type !== 'overFullScreen' && (
+              <View
+                style={{
+                  ...styles.header,
+                  backgroundColor: activeContentItem.mobileModal?.headerColor,
+                }}
+              >
+                <View style={styles.headerStart} />
+                <View>
+                  <Text style={{ fontWeight: 'bold' }}>
+                    {activeContentItem.mobileModal?.title ?? `What's New`}
+                  </Text>
+                </View>
+                <View style={styles.closeButtonContainer}>
+                  <Pressable
+                    onPress={() => {
+                      setIsUserTriggeredContentShown(false);
+                      setContentItems([]);
+                      setIsRemoteContentReady(false);
+                      onContentDismissedCallback.current?.();
+                    }}
+                    aria-label={'Close'}
+                  >
+                    {activeContentItem.mobileModal?.closeButton.style ===
+                      'x' && (
+                      <View style={styles.close}>
+                        <View style={styles.closeIcon1} />
+                        <View style={styles.closeIcon2} />
+                      </View>
+                    )}
+                    {activeContentItem.mobileModal?.closeButton.style !==
+                      'x' && (
+                      <Text>
+                        {activeContentItem.mobileModal?.closeButton.style ===
+                          'text' &&
+                          activeContentItem.mobileModal?.closeButton.label}
+                        {!activeContentItem.mobileModal && 'Close'}
+                      </Text>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+            )}
+            {activeContentItem.mobileModal?.type === 'overFullScreen' && (
+              <SafeAreaView
+                style={{
+                  backgroundColor: activeContentItem.mobileModal?.headerColor,
+                }}
+              >
+                <View
+                  style={{
+                    ...styles.header,
+                    backgroundColor: activeContentItem.mobileModal?.headerColor,
+                  }}
+                >
+                  <View style={styles.headerStart} />
+                  <View>
+                    <Text style={{ fontWeight: 'bold' }}>
+                      {activeContentItem.mobileModal?.title ?? `What's New`}
+                    </Text>
+                  </View>
+                  <View style={styles.closeButtonContainer}>
+                    <Pressable
+                      onPress={() => {
+                        setIsUserTriggeredContentShown(false);
+                        setContentItems([]);
+                        setIsRemoteContentReady(false);
+                        onContentDismissedCallback.current?.();
+                      }}
+                      aria-label={'Close'}
+                    >
+                      {activeContentItem.mobileModal?.closeButton.style ===
+                        'x' && (
+                        <View style={styles.close}>
+                          <View style={styles.closeIcon1} />
+                          <View style={styles.closeIcon2} />
+                        </View>
+                      )}
+                      {activeContentItem.mobileModal?.closeButton.style !==
+                        'x' && (
+                        <Text>
+                          {activeContentItem.mobileModal?.closeButton.style ===
+                            'text' &&
+                            activeContentItem.mobileModal?.closeButton.label}
+                          {!activeContentItem.mobileModal && 'Close'}
+                        </Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              </SafeAreaView>
+            )}
+
+            {!isRemoteContentReady && (
+              <ActivityIndicator style={styles.loadingIndicator} />
+            )}
+
+            <WebView
+              source={{ uri: activeContentItem.viewUrl }}
+              ref={webViewRef}
+              style={{
+                display: !isRemoteContentReady ? 'none' : undefined,
+              }}
+              onLoad={() => setIsRemoteContentReady(true)}
+              onNavigationStateChange={(event) => {
+                if (
+                  event.url.split('//')[1]?.split('/')[0] !==
+                  activeContentItem?.viewUrl.split('//')[1]?.split('/')[0]
+                ) {
+                  webViewRef.current?.stopLoading();
+                  Linking.openURL(event.url);
+                }
+              }}
+            />
+          </>
         )}
       </Modal>
 
@@ -239,20 +286,47 @@ export const WaveCxProvider = (props: {
 };
 
 const styles = StyleSheet.create({
+  loadingIndicator: {
+    marginTop: '10%',
+  },
   header: {
     display: 'flex',
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 20,
-    borderBottomColor: '#eee',
-    borderBottomWidth: 1,
     backgroundColor: '#fafafa',
   },
-  closeButton: {
-    width: 40,
+  closeButtonContainer: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'flex-end',
+  },
+  close: {
+    width: 20,
+    height: 20,
+  },
+  closeIcon1: {
+    position: 'absolute',
+    top: 0,
+    left: 9,
+    height: 20,
+    width: 2,
+    borderRadius: 2,
+    backgroundColor: '#222',
+    transform: 'rotate(45deg)',
+  },
+  closeIcon2: {
+    position: 'absolute',
+    top: 0,
+    left: 9,
+    height: 20,
+    width: 2,
+    borderRadius: 2,
+    backgroundColor: '#222',
+    transform: 'rotate(-45deg)',
   },
   headerStart: {
-    width: 40,
+    flex: 1,
   },
 });
 
