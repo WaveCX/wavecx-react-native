@@ -3,6 +3,12 @@ export type TargetedContent = {
   type: 'featurette';
   presentationType: 'popup' | 'button-triggered';
   viewUrl: string;
+  mobileModal?: {
+    type: 'pageSheet' | 'overFullScreen';
+    title: string;
+    headerColor: string;
+    closeButton: { style: 'x' } | { style: 'text'; label: string };
+  };
 };
 
 export type FireTargetedContentEvent = (options: {
