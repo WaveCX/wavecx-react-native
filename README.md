@@ -135,6 +135,34 @@ should no longer be handled for a previously identified user.
 handleEvent({ type: 'session-ended' });
 ```
 
+### Intercepting Links
+An optional callback may be provided to listen for links
+opened within WaveCX content and change the default
+behavior of opening them in the system browser.
+For example, an integration can listen for deep links
+and open them directly.
+
+```tsx
+import * as React from 'react';
+
+import { WaveCxProvider } from 'wavecx-react-native';
+
+export const App = () => (
+  <WaveCxProvider
+    organizationCode={'your-org-code'}
+    onLinkRequested={(url, { preventDefault, dismissContent }) => {
+      if (isDeepLink(url)) {
+        openYourDeepLink();
+        preventDefault(); // prevent default opening link in browser
+        dismissContent(); // close the WaveCX content
+      }
+    }}
+  >
+    <Main/>
+  </WaveCxProvider>
+);
+```
+
 ## API
 
 ### WaveCxProvider
@@ -142,11 +170,12 @@ handleEvent({ type: 'session-ended' });
 `WaveCxProvider` should be placed as high as possible in the
 application tree.
 #### Props
-| name             | type                                | description                                                                                                                     | required | default                                                         |
-|------------------|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
-| organizationCode | string                              | code identifying your organization in WaveCX (i.e. the "slug" of your API URL -- "your-org" in https://api.wavecx.com/your-org) | true     |                                                                 |
-| apiBaseUrl       | string                              | base URL which API calls are made to                                                                                            | false    | https://api.wavecx.com                                          |
-| recordEvent      | function (FireTargetedContentEvent) | function to record a raised event, returning relevant content                                                                   | false    | fireTargetedContentEventViaApi (makes real calls to WaveCX API) |
+| name             | type                                | description                                                                                                                           | required | default                                                         |
+|------------------|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
+| organizationCode | string                              | code identifying your organization in WaveCX (i.e. the "slug" of your API URL -- "your-org" in https://api.wavecx.com/your-org)       | true     |                                                                 |
+| apiBaseUrl       | string                              | base URL which API calls are made to                                                                                                  | false    | https://api.wavecx.com                                          |
+| recordEvent      | function (FireTargetedContentEvent) | function to record a raised event, returning relevant content                                                                         | false    | fireTargetedContentEventViaApi (makes real calls to WaveCX API) |
+| onLinkRequested  | function (LinkRequestHandler)       | function to listen for links requested within WaveCX content. Can be used e.g. to intercept deep links and prevent opening in browser | false    |                                                                 |
 #### Types
 ```ts
 type TargetedContent = {
@@ -164,6 +193,20 @@ type FireTargetedContentEvent = (options: {
   userIdVerification?: string;
   userAttributes?: object;
 }) => Promise<{ content: TargetedContent[] }>;
+
+/**
+ * @property preventDefault prevents default link handling/opening
+ * @property dismissContent closes any open content
+ */
+export type LinkRequestHandlerCallbacks = {
+  preventDefault: () => void;
+  dismissContent: () => void;
+};
+
+export type LinkRequestHandler = (
+  url: string,
+  callbacks: LinkRequestHandlerCallbacks
+) => void;
 ```
 
 ## Example Application
