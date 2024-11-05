@@ -188,7 +188,7 @@ export const WaveCxProvider = (props: {
               >
                 <View style={styles.headerStart} />
                 <View>
-                  <Text style={{ fontWeight: 'bold' }}>
+                  <Text style={styles.headerTitle}>
                     {activeContentItem.mobileModal?.title ?? `What's New`}
                   </Text>
                 </View>
@@ -228,7 +228,7 @@ export const WaveCxProvider = (props: {
                 >
                   <View style={styles.headerStart} />
                   <View>
-                    <Text style={{ fontWeight: 'bold' }}>
+                    <Text style={styles.headerTitle}>
                       {activeContentItem.mobileModal?.title ?? `What's New`}
                     </Text>
                   </View>
@@ -263,9 +263,7 @@ export const WaveCxProvider = (props: {
             <WebView
               source={{ uri: activeContentItem.viewUrl }}
               ref={webViewRef}
-              style={{
-                display: !isRemoteContentReady ? 'none' : undefined,
-              }}
+              style={!isRemoteContentReady ? styles.hidden : undefined}
               onLoad={() => setIsRemoteContentReady(true)}
               onShouldStartLoadWithRequest={(request) => {
                 const isInternalLink =
@@ -311,6 +309,9 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#fafafa',
   },
+  headerTitle: {
+    fontWeight: 'bold',
+  },
   closeButtonContainer: {
     flex: 1,
     display: 'flex',
@@ -342,6 +343,9 @@ const styles = StyleSheet.create({
   },
   headerStart: {
     flex: 1,
+  },
+  hidden: {
+    display: 'none',
   },
 });
 
