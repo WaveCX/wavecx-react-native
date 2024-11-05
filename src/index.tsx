@@ -270,7 +270,7 @@ export const WaveCxProvider = (props: {
                   request.url.split('//')[1]?.split('/')[0] ===
                   activeContentItem?.viewUrl.split('//')[1]?.split('/')[0];
 
-                if (isInternalLink) {
+                if (isInternalLink || !request.isTopFrame) {
                   return true;
                 }
 

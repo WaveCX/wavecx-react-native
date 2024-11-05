@@ -1,6 +1,6 @@
 {
   "name": "wavecx-react-native",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "React Native library for WaveCX",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
