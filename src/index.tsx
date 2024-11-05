@@ -46,6 +46,20 @@ export type Event =
 
 export type EventHandler = (event: Event) => void;
 
+/**
+ * @property preventDefault prevents default link handling/opening
+ * @property dismissContent closes any open content
+ */
+export type LinkRequestHandlerCallbacks = {
+  preventDefault: () => void;
+  dismissContent: () => void;
+};
+
+export type LinkRequestHandler = (
+  url: string,
+  callbacks: LinkRequestHandlerCallbacks
+) => void;
+
 type WaveCxContext = {
   handleEvent: EventHandler;
   hasUserTriggeredContent: boolean;
@@ -58,6 +72,7 @@ export const WaveCxProvider = (props: {
   children?: ReactNode;
   apiBaseUrl?: string;
   recordEvent?: FireTargetedContentEvent;
+  onLinkRequested?: LinkRequestHandler;
 }) => {
   const recordEvent = useMemo(
     () =>
@@ -139,6 +154,16 @@ export const WaveCxProvider = (props: {
     [props.organizationCode, recordEvent, user]
   );
 
+  const dismissContent = () => {
+    if (isUserTriggeredContentShown) {
+      setIsUserTriggeredContentShown(false);
+    } else {
+      setContentItems([]);
+    }
+    setIsRemoteContentReady(false);
+    onContentDismissedCallback.current?.();
+  };
+
   return (
     <WaveCxContext.Provider
       value={{
@@ -149,15 +174,7 @@ export const WaveCxProvider = (props: {
       <Modal
         visible={activeContentItem !== undefined}
         presentationStyle={activeContentItem?.mobileModal?.type ?? 'pageSheet'}
-        onRequestClose={() => {
-          if (isUserTriggeredContentShown) {
-            setIsUserTriggeredContentShown(false);
-          } else {
-            setContentItems([]);
-          }
-          setIsRemoteContentReady(false);
-          onContentDismissedCallback.current?.();
-        }}
+        onRequestClose={dismissContent}
         animationType={'slide'}
       >
         {activeContentItem && (
@@ -176,15 +193,7 @@ export const WaveCxProvider = (props: {
                   </Text>
                 </View>
                 <View style={styles.closeButtonContainer}>
-                  <Pressable
-                    onPress={() => {
-                      setIsUserTriggeredContentShown(false);
-                      setContentItems([]);
-                      setIsRemoteContentReady(false);
-                      onContentDismissedCallback.current?.();
-                    }}
-                    aria-label={'Close'}
-                  >
+                  <Pressable onPress={dismissContent} aria-label={'Close'}>
                     {activeContentItem.mobileModal?.closeButton.style ===
                       'x' && (
                       <View style={styles.close}>
@@ -224,15 +233,7 @@ export const WaveCxProvider = (props: {
                     </Text>
                   </View>
                   <View style={styles.closeButtonContainer}>
-                    <Pressable
-                      onPress={() => {
-                        setIsUserTriggeredContentShown(false);
-                        setContentItems([]);
-                        setIsRemoteContentReady(false);
-                        onContentDismissedCallback.current?.();
-                      }}
-                      aria-label={'Close'}
-                    >
+                    <Pressable onPress={dismissContent} aria-label={'Close'}>
                       {activeContentItem.mobileModal?.closeButton.style ===
                         'x' && (
                         <View style={styles.close}>
@@ -266,14 +267,28 @@ export const WaveCxProvider = (props: {
                 display: !isRemoteContentReady ? 'none' : undefined,
               }}
               onLoad={() => setIsRemoteContentReady(true)}
-              onNavigationStateChange={(event) => {
-                if (
-                  event.url.split('//')[1]?.split('/')[0] !==
-                  activeContentItem?.viewUrl.split('//')[1]?.split('/')[0]
-                ) {
-                  webViewRef.current?.stopLoading();
-                  Linking.openURL(event.url);
+              onShouldStartLoadWithRequest={(request) => {
+                const isInternalLink =
+                  request.url.split('//')[1]?.split('/')[0] ===
+                  activeContentItem?.viewUrl.split('//')[1]?.split('/')[0];
+
+                if (isInternalLink) {
+                  return true;
                 }
+
+                let isDefaultPrevented = false;
+                props.onLinkRequested?.(request.url, {
+                  dismissContent,
+                  preventDefault: () => {
+                    isDefaultPrevented = true;
+                  },
+                });
+
+                if (!isDefaultPrevented) {
+                  Linking.openURL(request.url);
+                }
+
+                return false;
               }}
             />
           </>
