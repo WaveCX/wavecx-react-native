@@ -265,28 +265,23 @@ export const WaveCxProvider = (props: {
               ref={webViewRef}
               style={!isRemoteContentReady ? styles.hidden : undefined}
               onLoad={() => setIsRemoteContentReady(true)}
-              onShouldStartLoadWithRequest={(request) => {
-                const isInternalLink =
-                  request.url.split('//')[1]?.split('/')[0] ===
-                  activeContentItem?.viewUrl.split('//')[1]?.split('/')[0];
+              onMessage={(message) => {
+                try {
+                  const messageData = JSON.parse(message.nativeEvent.data);
+                  if (messageData.type === 'link-requested') {
+                    let isDefaultPrevented = false;
+                    props.onLinkRequested?.(messageData.url, {
+                      dismissContent,
+                      preventDefault: () => {
+                        isDefaultPrevented = true;
+                      },
+                    });
 
-                if (isInternalLink || !request.isTopFrame) {
-                  return true;
-                }
-
-                let isDefaultPrevented = false;
-                props.onLinkRequested?.(request.url, {
-                  dismissContent,
-                  preventDefault: () => {
-                    isDefaultPrevented = true;
-                  },
-                });
-
-                if (!isDefaultPrevented) {
-                  Linking.openURL(request.url);
-                }
-
-                return false;
+                    if (!isDefaultPrevented) {
+                      Linking.openURL(messageData.url);
+                    }
+                  }
+                } catch {}
               }}
             />
           </>
