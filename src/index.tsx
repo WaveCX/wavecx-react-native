@@ -46,6 +46,10 @@ export type Event =
 
 export type EventHandler = (event: Event) => void;
 
+let isContentLoading = false;
+let eventQueue: Event[] = [];
+let contentCache: TargetedContent[] = [];
+
 /**
  * @property preventDefault prevents default link handling/opening
  * @property dismissContent closes any open content
@@ -88,78 +92,80 @@ export const WaveCxProvider = (props: {
     undefined
   );
 
-  const [user, setUser] = useState<
-    undefined | { id: string; idVerification?: string; attributes?: object }
+  const [activePopupContent, setActivePopupContent] = useState<
+    TargetedContent | undefined
   >(undefined);
-  const [contentItems, setContentItems] = useState<TargetedContent[]>([]);
-  const [userTriggeredContentItems, setUserTriggeredContentItems] = useState<
-    TargetedContent[]
-  >([]);
+  const [activeUserTriggeredContent, setActiveUserTriggeredContent] = useState<
+    TargetedContent | undefined
+  >(undefined);
   const [isUserTriggeredContentShown, setIsUserTriggeredContentShown] =
     useState(false);
   const [isRemoteContentReady, setIsRemoteContentReady] = useState(false);
 
-  const activeContentItem =
-    contentItems.length > 0
-      ? contentItems[0]
-      : isUserTriggeredContentShown && userTriggeredContentItems.length > 0
-        ? userTriggeredContentItems[0]
-        : undefined;
+  const presentedContentItem =
+    activePopupContent ??
+    (isUserTriggeredContentShown ? activeUserTriggeredContent : undefined);
 
   const handleEvent = useCallback<EventHandler>(
     async (event) => {
       onContentDismissedCallback.current = undefined;
 
-      if (event.type === 'session-started' && user?.id !== event.userId) {
-        setUser({
-          id: event.userId,
-          idVerification: event.userIdVerification,
-          attributes: event.userAttributes,
-        });
+      if (event.type === 'session-started') {
+        isContentLoading = true;
+        try {
+          const targetedContentResult = await recordEvent({
+            type: 'session-started',
+            organizationCode: props.organizationCode,
+            userId: event.userId,
+            userIdVerification: event.userIdVerification,
+            userAttributes: event.userAttributes,
+          });
+          contentCache = targetedContentResult.content;
+        } catch {}
+        isContentLoading = false;
+        if (eventQueue.length > 0) {
+          eventQueue.forEach((e) => handleEvent(e));
+          eventQueue = [];
+        }
       } else if (event.type === 'session-ended') {
-        setUser(undefined);
-        setContentItems([]);
+        contentCache = [];
       } else if (event.type === 'user-triggered-content') {
         setIsUserTriggeredContentShown(true);
         onContentDismissedCallback.current = event.onContentDismissed;
       } else if (event.type === 'trigger-point') {
-        setContentItems([]);
-        setUserTriggeredContentItems([]);
-        onContentDismissedCallback.current = event.onContentDismissed;
-
-        if (!user) {
+        if (isContentLoading) {
+          eventQueue.push(event);
           return;
         }
 
-        const targetedContentResult = await recordEvent({
-          type: 'trigger-point',
-          organizationCode: props.organizationCode,
-          userId: user.id,
-          userIdVerification: user.idVerification,
-          triggerPoint: event.triggerPoint,
-          userAttributes: user.attributes,
-        });
-        setContentItems(
-          targetedContentResult.content.filter(
-            (item: any) => item.presentationType === 'popup'
-          )
+        onContentDismissedCallback.current = event.onContentDismissed;
+        setActivePopupContent(
+          contentCache.filter(
+            (c) =>
+              c.triggerPoint === event.triggerPoint &&
+              c.presentationType === 'popup'
+          )[0]
         );
-        setUserTriggeredContentItems(
-          targetedContentResult.content.filter(
-            (item: any) => item.presentationType === 'button-triggered'
-          )
+        contentCache = contentCache.filter(
+          (c) =>
+            c.triggerPoint !== event.triggerPoint ||
+            c.presentationType !== 'popup'
+        );
+        setActiveUserTriggeredContent(
+          contentCache.filter(
+            (c) =>
+              c.triggerPoint === event.triggerPoint &&
+              c.presentationType === 'button-triggered'
+          )[0]
         );
       }
     },
-    [props.organizationCode, recordEvent, user]
+    [props.organizationCode, recordEvent]
   );
 
   const dismissContent = () => {
-    if (isUserTriggeredContentShown) {
-      setIsUserTriggeredContentShown(false);
-    } else {
-      setContentItems([]);
-    }
+    setIsUserTriggeredContentShown(false);
+    setActivePopupContent(undefined);
     setIsRemoteContentReady(false);
     onContentDismissedCallback.current?.();
   };
@@ -168,86 +174,91 @@ export const WaveCxProvider = (props: {
     <WaveCxContext.Provider
       value={{
         handleEvent,
-        hasUserTriggeredContent: userTriggeredContentItems.length > 0,
+        hasUserTriggeredContent: activeUserTriggeredContent !== undefined,
       }}
     >
       <Modal
-        visible={activeContentItem !== undefined}
-        presentationStyle={activeContentItem?.mobileModal?.type ?? 'pageSheet'}
+        visible={presentedContentItem !== undefined}
+        presentationStyle={
+          presentedContentItem?.mobileModal?.type ?? 'pageSheet'
+        }
         onRequestClose={dismissContent}
         animationType={'slide'}
       >
-        {activeContentItem && (
+        {presentedContentItem && (
           <>
-            {activeContentItem.mobileModal?.type !== 'overFullScreen' && (
+            {presentedContentItem.mobileModal?.type !== 'overFullScreen' && (
               <View
                 style={{
                   ...styles.header,
-                  backgroundColor: activeContentItem.mobileModal?.headerColor,
+                  backgroundColor:
+                    presentedContentItem.mobileModal?.headerColor,
                 }}
               >
                 <View style={styles.headerStart} />
                 <View>
                   <Text style={styles.headerTitle}>
-                    {activeContentItem.mobileModal?.title ?? `What's New`}
+                    {presentedContentItem.mobileModal?.title ?? `What's New`}
                   </Text>
                 </View>
                 <View style={styles.closeButtonContainer}>
                   <Pressable onPress={dismissContent} aria-label={'Close'}>
-                    {activeContentItem.mobileModal?.closeButton.style ===
+                    {presentedContentItem.mobileModal?.closeButton.style ===
                       'x' && (
                       <View style={styles.close}>
                         <View style={styles.closeIcon1} />
                         <View style={styles.closeIcon2} />
                       </View>
                     )}
-                    {activeContentItem.mobileModal?.closeButton.style !==
+                    {presentedContentItem.mobileModal?.closeButton.style !==
                       'x' && (
                       <Text>
-                        {activeContentItem.mobileModal?.closeButton.style ===
+                        {presentedContentItem.mobileModal?.closeButton.style ===
                           'text' &&
-                          activeContentItem.mobileModal?.closeButton.label}
-                        {!activeContentItem.mobileModal && 'Close'}
+                          presentedContentItem.mobileModal?.closeButton.label}
+                        {!presentedContentItem.mobileModal && 'Close'}
                       </Text>
                     )}
                   </Pressable>
                 </View>
               </View>
             )}
-            {activeContentItem.mobileModal?.type === 'overFullScreen' && (
+            {presentedContentItem.mobileModal?.type === 'overFullScreen' && (
               <SafeAreaView
                 style={{
-                  backgroundColor: activeContentItem.mobileModal?.headerColor,
+                  backgroundColor:
+                    presentedContentItem.mobileModal?.headerColor,
                 }}
               >
                 <View
                   style={{
                     ...styles.header,
-                    backgroundColor: activeContentItem.mobileModal?.headerColor,
+                    backgroundColor:
+                      presentedContentItem.mobileModal?.headerColor,
                   }}
                 >
                   <View style={styles.headerStart} />
                   <View>
                     <Text style={styles.headerTitle}>
-                      {activeContentItem.mobileModal?.title ?? `What's New`}
+                      {presentedContentItem.mobileModal?.title ?? `What's New`}
                     </Text>
                   </View>
                   <View style={styles.closeButtonContainer}>
                     <Pressable onPress={dismissContent} aria-label={'Close'}>
-                      {activeContentItem.mobileModal?.closeButton.style ===
+                      {presentedContentItem.mobileModal?.closeButton.style ===
                         'x' && (
                         <View style={styles.close}>
                           <View style={styles.closeIcon1} />
                           <View style={styles.closeIcon2} />
                         </View>
                       )}
-                      {activeContentItem.mobileModal?.closeButton.style !==
+                      {presentedContentItem.mobileModal?.closeButton.style !==
                         'x' && (
                         <Text>
-                          {activeContentItem.mobileModal?.closeButton.style ===
-                            'text' &&
-                            activeContentItem.mobileModal?.closeButton.label}
-                          {!activeContentItem.mobileModal && 'Close'}
+                          {presentedContentItem.mobileModal?.closeButton
+                            .style === 'text' &&
+                            presentedContentItem.mobileModal?.closeButton.label}
+                          {!presentedContentItem.mobileModal && 'Close'}
                         </Text>
                       )}
                     </Pressable>
@@ -261,7 +272,7 @@ export const WaveCxProvider = (props: {
             )}
 
             <WebView
-              source={{ uri: activeContentItem.viewUrl }}
+              source={{ uri: presentedContentItem.viewUrl }}
               ref={webViewRef}
               style={!isRemoteContentReady ? styles.hidden : undefined}
               onLoad={() => setIsRemoteContentReady(true)}
