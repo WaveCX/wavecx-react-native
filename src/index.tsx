@@ -46,9 +46,22 @@ export type Event =
 
 export type EventHandler = (event: Event) => void;
 
+export type ContentFetchStrategy = 'session-start' | 'trigger-point';
+
+let user:
+  | {
+      id: string;
+      idVerification?: string;
+      attributes?: any;
+    }
+  | undefined;
 let isContentLoading = false;
 let eventQueue: Event[] = [];
 let contentCache: TargetedContent[] = [];
+let triggerPointCache: {
+  triggerPoint: string;
+  content: TargetedContent[];
+}[] = [];
 
 /**
  * @property preventDefault prevents default link handling/opening
@@ -77,6 +90,7 @@ export const WaveCxProvider = (props: {
   apiBaseUrl?: string;
   recordEvent?: FireTargetedContentEvent;
   onLinkRequested?: LinkRequestHandler;
+  contentFetchStrategy?: ContentFetchStrategy;
 }) => {
   const recordEvent = useMemo(
     () =>
@@ -87,7 +101,6 @@ export const WaveCxProvider = (props: {
     [props.recordEvent, props.apiBaseUrl]
   );
 
-  const webViewRef = useRef<WebView>(null);
   const onContentDismissedCallback = useRef<(() => void) | undefined>(
     undefined
   );
@@ -111,56 +124,113 @@ export const WaveCxProvider = (props: {
       onContentDismissedCallback.current = undefined;
 
       if (event.type === 'session-started') {
-        isContentLoading = true;
-        try {
-          const targetedContentResult = await recordEvent({
-            type: 'session-started',
-            organizationCode: props.organizationCode,
-            userId: event.userId,
-            userIdVerification: event.userIdVerification,
-            userAttributes: event.userAttributes,
-          });
-          contentCache = targetedContentResult.content;
-        } catch {}
-        isContentLoading = false;
-        if (eventQueue.length > 0) {
-          eventQueue.forEach((e) => handleEvent(e));
-          eventQueue = [];
+        user = {
+          id: event.userId,
+          idVerification: event.userIdVerification,
+          attributes: event.userAttributes,
+        };
+        contentCache = [];
+        triggerPointCache = [];
+
+        if (props.contentFetchStrategy === 'session-start') {
+          isContentLoading = true;
+          try {
+            const targetedContentResult = await recordEvent({
+              type: 'session-started',
+              organizationCode: props.organizationCode,
+              userId: event.userId,
+              userIdVerification: event.userIdVerification,
+              userAttributes: event.userAttributes,
+            });
+            contentCache = targetedContentResult.content;
+          } catch {}
+          isContentLoading = false;
+          if (eventQueue.length > 0) {
+            eventQueue.forEach((e) => handleEvent(e));
+            eventQueue = [];
+          }
         }
       } else if (event.type === 'session-ended') {
         contentCache = [];
+        triggerPointCache = [];
+        setActivePopupContent(undefined);
+        setActiveUserTriggeredContent(undefined);
       } else if (event.type === 'user-triggered-content') {
         setIsUserTriggeredContentShown(true);
         onContentDismissedCallback.current = event.onContentDismissed;
       } else if (event.type === 'trigger-point') {
-        if (isContentLoading) {
-          eventQueue.push(event);
-          return;
-        }
-
+        setActivePopupContent(undefined);
+        setActiveUserTriggeredContent(undefined);
         onContentDismissedCallback.current = event.onContentDismissed;
-        setActivePopupContent(
-          contentCache.filter(
+
+        if (props.contentFetchStrategy === 'session-start') {
+          if (isContentLoading) {
+            eventQueue.push(event);
+            return;
+          }
+
+          onContentDismissedCallback.current = event.onContentDismissed;
+          setActivePopupContent(
+            contentCache.filter(
+              (c) =>
+                c.triggerPoint === event.triggerPoint &&
+                c.presentationType === 'popup'
+            )[0]
+          );
+          contentCache = contentCache.filter(
             (c) =>
-              c.triggerPoint === event.triggerPoint &&
-              c.presentationType === 'popup'
-          )[0]
-        );
-        contentCache = contentCache.filter(
-          (c) =>
-            c.triggerPoint !== event.triggerPoint ||
-            c.presentationType !== 'popup'
-        );
-        setActiveUserTriggeredContent(
-          contentCache.filter(
-            (c) =>
-              c.triggerPoint === event.triggerPoint &&
-              c.presentationType === 'button-triggered'
-          )[0]
-        );
+              c.triggerPoint !== event.triggerPoint ||
+              c.presentationType !== 'popup'
+          );
+          setActiveUserTriggeredContent(
+            contentCache.filter(
+              (c) =>
+                c.triggerPoint === event.triggerPoint &&
+                c.presentationType === 'button-triggered'
+            )[0]
+          );
+        } else if (user) {
+          const cached = triggerPointCache.find(
+            (c) => c.triggerPoint === event.triggerPoint
+          );
+          if (cached) {
+            setActiveUserTriggeredContent(
+              cached.content.filter(
+                (c) => c.presentationType === 'button-triggered'
+              )[0]
+            );
+            return;
+          }
+
+          try {
+            const targetedContentResult = await recordEvent({
+              type: 'trigger-point',
+              triggerPoint: event.triggerPoint,
+              organizationCode: props.organizationCode,
+              userId: user.id,
+              userIdVerification: user.idVerification,
+              userAttributes: user.attributes,
+            });
+            triggerPointCache.push({
+              triggerPoint: event.triggerPoint,
+              content: targetedContentResult.content,
+            });
+            setActivePopupContent(
+              targetedContentResult.content.filter(
+                (c) => c.presentationType === 'popup'
+              )[0]
+            );
+            setActiveUserTriggeredContent(
+              targetedContentResult.content.filter(
+                (c) => c.presentationType === 'button-triggered'
+              )[0]
+            );
+            contentCache = targetedContentResult.content;
+          } catch {}
+        }
       }
     },
-    [props.organizationCode, recordEvent]
+    [props.organizationCode, recordEvent, props.contentFetchStrategy]
   );
 
   const dismissContent = () => {
@@ -273,7 +343,6 @@ export const WaveCxProvider = (props: {
 
             <WebView
               source={{ uri: presentedContentItem.viewUrl }}
-              ref={webViewRef}
               style={!isRemoteContentReady ? styles.hidden : undefined}
               onLoad={() => setIsRemoteContentReady(true)}
               onMessage={(message) => {

@@ -1,6 +1,6 @@
 {
   "name": "wavecx-react-native",
-  "version": "1.4.3",
+  "version": "1.5.0",
   "description": "React Native library for WaveCX",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
@@ -57,6 +57,7 @@
     "@evilmartians/lefthook": "^1.5.0",
     "@react-native/eslint-config": "^0.73.1",
     "@release-it/conventional-changelog": "^5.0.0",
+    "@testing-library/react-native": "^12.8.1",
     "@types/jest": "^29.5.5",
     "@types/react": "^18.2.44",
     "commitlint": "^17.0.2",
@@ -65,11 +66,13 @@
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.1",
     "jest": "^29.7.0",
+    "msw": "^2.6.5",
     "prettier": "^3.0.3",
     "react": "18.2.0",
     "react-native": "0.73.6",
     "react-native-builder-bob": "^0.23.2",
     "react-native-webview": "^13.12.3",
+    "react-test-renderer": "^18.3.1",
     "release-it": "^15.0.0",
     "typescript": "^5.2.2"
   },
@@ -90,7 +93,10 @@
     "modulePathIgnorePatterns": [
       "<rootDir>/example/node_modules",
       "<rootDir>/lib/"
-    ]
+    ],
+    "moduleNameMapper": {
+      "react-native-webview": "<rootDir>/src/__mocks__/WebView.tsx"
+    }
   },
   "commitlint": {
     "extends": [
