@@ -98,15 +98,18 @@ describe(WaveCxProvider.name, () => {
     const { getByText, queryByText } = render(
       <WaveCxProvider
         organizationCode={'org'}
-        recordEvent={async () => ({
-          content: [
-            {
-              type: 'featurette',
-              presentationType: 'popup',
-              triggerPoint: 'trigger-point',
-              viewUrl: 'https://mock.content.com/embed',
-            },
-          ],
+        recordEvent={async (event) => ({
+          content:
+            event.triggerPoint !== 'trigger-point'
+              ? []
+              : [
+                  {
+                    type: 'featurette',
+                    presentationType: 'popup',
+                    triggerPoint: 'trigger-point',
+                    viewUrl: 'https://mock.content.com/embed',
+                  },
+                ],
         })}
       >
         <Consumer />
