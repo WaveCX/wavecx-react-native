@@ -87,7 +87,6 @@ export const WaveCxProvider = (props: {
     [props.recordEvent, props.apiBaseUrl]
   );
 
-  const webViewRef = useRef<WebView>(null);
   const onContentDismissedCallback = useRef<(() => void) | undefined>(
     undefined
   );
@@ -273,7 +272,6 @@ export const WaveCxProvider = (props: {
 
             <WebView
               source={{ uri: presentedContentItem.viewUrl }}
-              ref={webViewRef}
               style={!isRemoteContentReady ? styles.hidden : undefined}
               onLoad={() => setIsRemoteContentReady(true)}
               onMessage={(message) => {
