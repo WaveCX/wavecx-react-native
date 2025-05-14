@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   hidden: {
-    display: 'none',
+    opacity: 0,
   },
 });
 
