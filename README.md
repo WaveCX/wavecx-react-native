@@ -170,13 +170,17 @@ export const App = () => (
 `WaveCxProvider` should be placed as high as possible in the
 application tree.
 #### Props
-| name                 | type                                | description                                                                                                                           | required | default                                                         |
-|----------------------|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
-| organizationCode     | string                              | code identifying your organization in WaveCX (i.e. the "slug" of your API URL -- "your-org" in https://api.wavecx.com/your-org)       | true     |                                                                 |
-| apiBaseUrl           | string                              | base URL which API calls are made to                                                                                                  | false    | https://api.wavecx.com                                          |
-| recordEvent          | function (FireTargetedContentEvent) | function to record a raised event, returning relevant content                                                                         | false    | fireTargetedContentEventViaApi (makes real calls to WaveCX API) |
-| onLinkRequested      | function (LinkRequestHandler)       | function to listen for links requested within WaveCX content. Can be used e.g. to intercept deep links and prevent opening in browser | false    |                                                                 |
-| contentFetchStrategy | ContentFetchStrategy                | configures content fetching to be done once at session start (one fetch for all trigger points) or once per trigger point             | false    | trigger-point                                                   |
+| name                   | type                                | description                                                                                                                           | required | default                                                         |
+|------------------------|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
+| organizationCode       | string                              | code identifying your organization in WaveCX (i.e. the "slug" of your API URL -- "your-org" in https://api.wavecx.com/your-org)       | true     |                                                                 |
+| apiBaseUrl             | string                              | base URL which API calls are made to                                                                                                  | false    | https://api.wavecx.com                                          |
+| recordEvent            | function (FireTargetedContentEvent) | function to record a raised event, returning relevant content                                                                         | false    | fireTargetedContentEventViaApi (makes real calls to WaveCX API) |
+| onLinkRequested        | function (LinkRequestHandler)       | function to listen for links requested within WaveCX content. Can be used e.g. to intercept deep links and prevent opening in browser | false    |                                                                 |
+| contentFetchStrategy   | ContentFetchStrategy                | configures content fetching to be done once at session start (one fetch for all trigger points) or once per trigger point             | false    | trigger-point                                                   |
+| maxFontSizeMultiplier  | number                              | maximum OS-level font scaling multiplier                                                                                              | false    |                                                                 |
+| headerTitleStyle       | TextStyle                           | styles to apply to modal header title                                                                                                 | false    |                                                                 |
+| headerCloseButtonStyle | TextStyle                           | styles to apply to the modal close button text                                                                                        | false    |                                                                 |
+
 #### Types
 ```ts
 type TargetedContent = {

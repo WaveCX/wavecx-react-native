@@ -16,6 +16,7 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
+  type TextStyle,
   View,
 } from 'react-native';
 import WebView from 'react-native-webview';
@@ -83,6 +84,9 @@ export const WaveCxProvider = (props: {
   onLinkRequested?: LinkRequestHandler;
   contentFetchStrategy?: ContentFetchStrategy;
   initiateSession?: InitiateSession;
+  maxFontSizeMultiplier?: number;
+  headerTitleStyle?: TextStyle;
+  headerCloseButtonStyle?: TextStyle;
 }) => {
   const stateRef = useRef({
     isContentLoading: false,
@@ -264,7 +268,10 @@ export const WaveCxProvider = (props: {
               >
                 <View style={styles.headerStart} />
                 <View>
-                  <Text style={styles.headerTitle}>
+                  <Text
+                    style={[styles.headerTitle, props.headerTitleStyle]}
+                    maxFontSizeMultiplier={props.maxFontSizeMultiplier}
+                  >
                     {presentedContentItem.mobileModal?.title ?? `What's New`}
                   </Text>
                 </View>
@@ -279,7 +286,10 @@ export const WaveCxProvider = (props: {
                     )}
                     {presentedContentItem.mobileModal?.closeButton.style !==
                       'x' && (
-                      <Text>
+                      <Text
+                        style={props.headerCloseButtonStyle}
+                        maxFontSizeMultiplier={props.maxFontSizeMultiplier}
+                      >
                         {presentedContentItem.mobileModal?.closeButton.style ===
                           'text' &&
                           presentedContentItem.mobileModal?.closeButton.label}
