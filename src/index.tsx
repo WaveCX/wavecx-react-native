@@ -183,6 +183,9 @@ export const WaveCxProvider = (props: {
               userIdVerification: event.userIdVerification,
               userAttributes: event.userAttributes,
             });
+            if (targetedContentResult.sessionToken) {
+              storeSessionToken(targetedContentResult.sessionToken);
+            }
             stateRef.current.contentCache = targetedContentResult.content;
           } catch {}
           stateRef.current.isContentLoading = false;
