@@ -12,13 +12,14 @@ export type TargetedContent = {
 };
 
 export type FireTargetedContentEvent = (options: {
-  type: 'session-started' | 'trigger-point';
+  type: 'session-started' | 'session-refresh' | 'trigger-point';
+  sessionToken?: string;
   triggerPoint?: string;
   organizationCode: string;
   userId: string;
   userIdVerification?: string;
   userAttributes?: object;
-}) => Promise<{ content: TargetedContent[] }>;
+}) => Promise<{ content: TargetedContent[]; sessionToken?: string }>;
 
 export const composeFireTargetedContentEventViaApi =
   (dependencies: { apiBaseUrl: string }): FireTargetedContentEvent =>
@@ -30,6 +31,7 @@ export const composeFireTargetedContentEventViaApi =
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: options.type,
+          sessionToken: options.sessionToken,
           userId: options.userId,
           userIdVerification: options.userIdVerification,
           triggerPoint: options.triggerPoint,

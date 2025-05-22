@@ -16,6 +16,7 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
+  type TextStyle,
   View,
 } from 'react-native';
 import WebView from 'react-native-webview';
@@ -25,6 +26,12 @@ import {
   type TargetedContent,
   type FireTargetedContentEvent,
 } from './targeted-content';
+import {
+  type InitiateSession,
+  readSessionToken,
+  storeSessionToken,
+  clearSessionToken,
+} from './sessions';
 
 export type Event =
   | {
@@ -47,21 +54,6 @@ export type Event =
 export type EventHandler = (event: Event) => void;
 
 export type ContentFetchStrategy = 'session-start' | 'trigger-point';
-
-let user:
-  | {
-      id: string;
-      idVerification?: string;
-      attributes?: any;
-    }
-  | undefined;
-let isContentLoading = false;
-let eventQueue: Event[] = [];
-let contentCache: TargetedContent[] = [];
-let triggerPointCache: {
-  triggerPoint: string;
-  content: TargetedContent[];
-}[] = [];
 
 /**
  * @property preventDefault prevents default link handling/opening
@@ -91,7 +83,17 @@ export const WaveCxProvider = (props: {
   recordEvent?: FireTargetedContentEvent;
   onLinkRequested?: LinkRequestHandler;
   contentFetchStrategy?: ContentFetchStrategy;
+  initiateSession?: InitiateSession;
+  maxFontSizeMultiplier?: number;
+  headerTitleStyle?: TextStyle;
+  headerCloseButtonStyle?: TextStyle;
 }) => {
+  const stateRef = useRef({
+    isContentLoading: false,
+    eventQueue: [] as Event[],
+    contentCache: [] as TargetedContent[],
+  });
+
   const recordEvent = useMemo(
     () =>
       props.recordEvent ??
@@ -119,42 +121,84 @@ export const WaveCxProvider = (props: {
     activePopupContent ??
     (isUserTriggeredContentShown ? activeUserTriggeredContent : undefined);
 
+  const { initiateSession, organizationCode } = props;
+
   const handleEvent = useCallback<EventHandler>(
     async (event) => {
       onContentDismissedCallback.current = undefined;
 
       if (event.type === 'session-started') {
-        user = {
-          id: event.userId,
-          idVerification: event.userIdVerification,
-          attributes: event.userAttributes,
-        };
-        contentCache = [];
-        triggerPointCache = [];
+        stateRef.current.contentCache = [];
 
-        if (props.contentFetchStrategy === 'session-start') {
-          isContentLoading = true;
+        const sessionToken = readSessionToken();
+        if (sessionToken) {
           try {
+            stateRef.current.isContentLoading = true;
             const targetedContentResult = await recordEvent({
-              type: 'session-started',
-              organizationCode: props.organizationCode,
+              organizationCode: organizationCode,
+              type: 'session-refresh',
+              sessionToken: sessionToken,
+              userId: event.userId,
+            });
+            stateRef.current.contentCache = targetedContentResult.content;
+          } catch {}
+          stateRef.current.isContentLoading = false;
+          if (stateRef.current.eventQueue.length > 0) {
+            stateRef.current.eventQueue.forEach((e) => handleEvent(e));
+            stateRef.current.eventQueue = [];
+          }
+          return;
+        }
+
+        if (initiateSession) {
+          try {
+            stateRef.current.isContentLoading = true;
+            const sessionResult = await initiateSession({
+              organizationCode: organizationCode,
               userId: event.userId,
               userIdVerification: event.userIdVerification,
               userAttributes: event.userAttributes,
             });
-            contentCache = targetedContentResult.content;
+            storeSessionToken(sessionResult.sessionToken);
+            const targetedContentResult = await recordEvent({
+              organizationCode: organizationCode,
+              type: 'session-refresh',
+              sessionToken: sessionResult.sessionToken,
+              userId: event.userId,
+            });
+            stateRef.current.contentCache = targetedContentResult.content;
           } catch {}
-          isContentLoading = false;
-          if (eventQueue.length > 0) {
-            eventQueue.forEach((e) => handleEvent(e));
-            eventQueue = [];
+          stateRef.current.isContentLoading = false;
+          if (stateRef.current.eventQueue.length > 0) {
+            stateRef.current.eventQueue.forEach((e) => handleEvent(e));
+            stateRef.current.eventQueue = [];
+          }
+        } else {
+          stateRef.current.isContentLoading = true;
+          try {
+            const targetedContentResult = await recordEvent({
+              type: 'session-started',
+              organizationCode: organizationCode,
+              userId: event.userId,
+              userIdVerification: event.userIdVerification,
+              userAttributes: event.userAttributes,
+            });
+            if (targetedContentResult.sessionToken) {
+              storeSessionToken(targetedContentResult.sessionToken);
+            }
+            stateRef.current.contentCache = targetedContentResult.content;
+          } catch {}
+          stateRef.current.isContentLoading = false;
+          if (stateRef.current.eventQueue.length > 0) {
+            stateRef.current.eventQueue.forEach((e) => handleEvent(e));
+            stateRef.current.eventQueue = [];
           }
         }
       } else if (event.type === 'session-ended') {
-        contentCache = [];
-        triggerPointCache = [];
+        stateRef.current.contentCache = [];
         setActivePopupContent(undefined);
         setActiveUserTriggeredContent(undefined);
+        clearSessionToken();
       } else if (event.type === 'user-triggered-content') {
         setIsUserTriggeredContentShown(true);
         onContentDismissedCallback.current = event.onContentDismissed;
@@ -163,74 +207,34 @@ export const WaveCxProvider = (props: {
         setActiveUserTriggeredContent(undefined);
         onContentDismissedCallback.current = event.onContentDismissed;
 
-        if (props.contentFetchStrategy === 'session-start') {
-          if (isContentLoading) {
-            eventQueue.push(event);
-            return;
-          }
-
-          onContentDismissedCallback.current = event.onContentDismissed;
-          setActivePopupContent(
-            contentCache.filter(
-              (c) =>
-                c.triggerPoint === event.triggerPoint &&
-                c.presentationType === 'popup'
-            )[0]
-          );
-          contentCache = contentCache.filter(
-            (c) =>
-              c.triggerPoint !== event.triggerPoint ||
-              c.presentationType !== 'popup'
-          );
-          setActiveUserTriggeredContent(
-            contentCache.filter(
-              (c) =>
-                c.triggerPoint === event.triggerPoint &&
-                c.presentationType === 'button-triggered'
-            )[0]
-          );
-        } else if (user) {
-          const cached = triggerPointCache.find(
-            (c) => c.triggerPoint === event.triggerPoint
-          );
-          if (cached) {
-            setActiveUserTriggeredContent(
-              cached.content.filter(
-                (c) => c.presentationType === 'button-triggered'
-              )[0]
-            );
-            return;
-          }
-
-          try {
-            const targetedContentResult = await recordEvent({
-              type: 'trigger-point',
-              triggerPoint: event.triggerPoint,
-              organizationCode: props.organizationCode,
-              userId: user.id,
-              userIdVerification: user.idVerification,
-              userAttributes: user.attributes,
-            });
-            triggerPointCache.push({
-              triggerPoint: event.triggerPoint,
-              content: targetedContentResult.content,
-            });
-            setActivePopupContent(
-              targetedContentResult.content.filter(
-                (c) => c.presentationType === 'popup'
-              )[0]
-            );
-            setActiveUserTriggeredContent(
-              targetedContentResult.content.filter(
-                (c) => c.presentationType === 'button-triggered'
-              )[0]
-            );
-            contentCache = targetedContentResult.content;
-          } catch {}
+        if (stateRef.current.isContentLoading) {
+          stateRef.current.eventQueue.push(event);
+          return;
         }
+
+        onContentDismissedCallback.current = event.onContentDismissed;
+        setActivePopupContent(
+          stateRef.current.contentCache.filter(
+            (c) =>
+              c.triggerPoint === event.triggerPoint &&
+              c.presentationType === 'popup'
+          )[0]
+        );
+        stateRef.current.contentCache = stateRef.current.contentCache.filter(
+          (c) =>
+            c.triggerPoint !== event.triggerPoint ||
+            c.presentationType !== 'popup'
+        );
+        setActiveUserTriggeredContent(
+          stateRef.current.contentCache.filter(
+            (c) =>
+              c.triggerPoint === event.triggerPoint &&
+              c.presentationType === 'button-triggered'
+          )[0]
+        );
       }
     },
-    [props.organizationCode, recordEvent, props.contentFetchStrategy]
+    [organizationCode, initiateSession, recordEvent]
   );
 
   const dismissContent = () => {
@@ -267,7 +271,10 @@ export const WaveCxProvider = (props: {
               >
                 <View style={styles.headerStart} />
                 <View>
-                  <Text style={styles.headerTitle}>
+                  <Text
+                    style={[styles.headerTitle, props.headerTitleStyle]}
+                    maxFontSizeMultiplier={props.maxFontSizeMultiplier}
+                  >
                     {presentedContentItem.mobileModal?.title ?? `What's New`}
                   </Text>
                 </View>
@@ -282,7 +289,10 @@ export const WaveCxProvider = (props: {
                     )}
                     {presentedContentItem.mobileModal?.closeButton.style !==
                       'x' && (
-                      <Text>
+                      <Text
+                        style={props.headerCloseButtonStyle}
+                        maxFontSizeMultiplier={props.maxFontSizeMultiplier}
+                      >
                         {presentedContentItem.mobileModal?.closeButton.style ===
                           'text' &&
                           presentedContentItem.mobileModal?.closeButton.label}
@@ -420,7 +430,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   hidden: {
-    display: 'none',
+    opacity: 0,
   },
 });
 
