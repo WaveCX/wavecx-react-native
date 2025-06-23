@@ -19,7 +19,11 @@ export type FireTargetedContentEvent = (options: {
   userId: string;
   userIdVerification?: string;
   userAttributes?: object;
-}) => Promise<{ content: TargetedContent[]; sessionToken?: string }>;
+}) => Promise<{
+  content: TargetedContent[];
+  sessionToken?: string;
+  expiresIn?: number;
+}>;
 
 export const composeFireTargetedContentEventViaApi =
   (dependencies: { apiBaseUrl: string }): FireTargetedContentEvent =>
@@ -42,7 +46,11 @@ export const composeFireTargetedContentEventViaApi =
         }),
       }
     );
-    return response.json();
+    if (response.ok) {
+      return response.json();
+    } else {
+      return { content: [] };
+    }
   };
 
 export const fireTargetedContentEventViaApi =

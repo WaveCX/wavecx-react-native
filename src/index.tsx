@@ -159,7 +159,10 @@ export const WaveCxProvider = (props: {
               userIdVerification: event.userIdVerification,
               userAttributes: event.userAttributes,
             });
-            storeSessionToken(sessionResult.sessionToken);
+            storeSessionToken(
+              sessionResult.sessionToken,
+              sessionResult.expiresIn ?? 3600
+            );
             const targetedContentResult = await recordEvent({
               organizationCode: organizationCode,
               type: 'session-refresh',
@@ -184,7 +187,10 @@ export const WaveCxProvider = (props: {
               userAttributes: event.userAttributes,
             });
             if (targetedContentResult.sessionToken) {
-              storeSessionToken(targetedContentResult.sessionToken);
+              storeSessionToken(
+                targetedContentResult.sessionToken,
+                targetedContentResult.expiresIn ?? 3600
+              );
             }
             stateRef.current.contentCache = targetedContentResult.content;
           } catch {}
@@ -251,65 +257,18 @@ export const WaveCxProvider = (props: {
         hasUserTriggeredContent: activeUserTriggeredContent !== undefined,
       }}
     >
-      <Modal
-        visible={presentedContentItem !== undefined}
-        presentationStyle={
-          presentedContentItem?.mobileModal?.type ?? 'pageSheet'
-        }
-        onRequestClose={dismissContent}
-        animationType={'slide'}
-      >
-        {presentedContentItem && (
-          <>
-            {presentedContentItem.mobileModal?.type !== 'overFullScreen' && (
-              <View
-                style={{
-                  ...styles.header,
-                  backgroundColor:
-                    presentedContentItem.mobileModal?.headerColor,
-                }}
-              >
-                <View style={styles.headerStart} />
-                <View>
-                  <Text
-                    style={[styles.headerTitle, props.headerTitleStyle]}
-                    maxFontSizeMultiplier={props.maxFontSizeMultiplier}
-                  >
-                    {presentedContentItem.mobileModal?.title ?? `What's New`}
-                  </Text>
-                </View>
-                <View style={styles.closeButtonContainer}>
-                  <Pressable onPress={dismissContent} aria-label={'Close'}>
-                    {presentedContentItem.mobileModal?.closeButton.style ===
-                      'x' && (
-                      <View style={styles.close}>
-                        <View style={styles.closeIcon1} />
-                        <View style={styles.closeIcon2} />
-                      </View>
-                    )}
-                    {presentedContentItem.mobileModal?.closeButton.style !==
-                      'x' && (
-                      <Text
-                        style={props.headerCloseButtonStyle}
-                        maxFontSizeMultiplier={props.maxFontSizeMultiplier}
-                      >
-                        {presentedContentItem.mobileModal?.closeButton.style ===
-                          'text' &&
-                          presentedContentItem.mobileModal?.closeButton.label}
-                        {!presentedContentItem.mobileModal && 'Close'}
-                      </Text>
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-            )}
-            {presentedContentItem.mobileModal?.type === 'overFullScreen' && (
-              <SafeAreaView
-                style={{
-                  backgroundColor:
-                    presentedContentItem.mobileModal?.headerColor,
-                }}
-              >
+      {presentedContentItem && (
+        <Modal
+          visible={true}
+          presentationStyle={
+            presentedContentItem?.mobileModal?.type ?? 'pageSheet'
+          }
+          onRequestClose={dismissContent}
+          animationType={'slide'}
+        >
+          {presentedContentItem && (
+            <>
+              {presentedContentItem.mobileModal?.type !== 'overFullScreen' && (
                 <View
                   style={{
                     ...styles.header,
@@ -319,7 +278,10 @@ export const WaveCxProvider = (props: {
                 >
                   <View style={styles.headerStart} />
                   <View>
-                    <Text style={styles.headerTitle}>
+                    <Text
+                      style={[styles.headerTitle, props.headerTitleStyle]}
+                      maxFontSizeMultiplier={props.maxFontSizeMultiplier}
+                    >
                       {presentedContentItem.mobileModal?.title ?? `What's New`}
                     </Text>
                   </View>
@@ -334,7 +296,10 @@ export const WaveCxProvider = (props: {
                       )}
                       {presentedContentItem.mobileModal?.closeButton.style !==
                         'x' && (
-                        <Text>
+                        <Text
+                          style={props.headerCloseButtonStyle}
+                          maxFontSizeMultiplier={props.maxFontSizeMultiplier}
+                        >
                           {presentedContentItem.mobileModal?.closeButton
                             .style === 'text' &&
                             presentedContentItem.mobileModal?.closeButton.label}
@@ -344,39 +309,84 @@ export const WaveCxProvider = (props: {
                     </Pressable>
                   </View>
                 </View>
-              </SafeAreaView>
-            )}
+              )}
+              {presentedContentItem.mobileModal?.type === 'overFullScreen' && (
+                <SafeAreaView
+                  style={{
+                    backgroundColor:
+                      presentedContentItem.mobileModal?.headerColor,
+                  }}
+                >
+                  <View
+                    style={{
+                      ...styles.header,
+                      backgroundColor:
+                        presentedContentItem.mobileModal?.headerColor,
+                    }}
+                  >
+                    <View style={styles.headerStart} />
+                    <View>
+                      <Text style={styles.headerTitle}>
+                        {presentedContentItem.mobileModal?.title ??
+                          `What's New`}
+                      </Text>
+                    </View>
+                    <View style={styles.closeButtonContainer}>
+                      <Pressable onPress={dismissContent} aria-label={'Close'}>
+                        {presentedContentItem.mobileModal?.closeButton.style ===
+                          'x' && (
+                          <View style={styles.close}>
+                            <View style={styles.closeIcon1} />
+                            <View style={styles.closeIcon2} />
+                          </View>
+                        )}
+                        {presentedContentItem.mobileModal?.closeButton.style !==
+                          'x' && (
+                          <Text>
+                            {presentedContentItem.mobileModal?.closeButton
+                              .style === 'text' &&
+                              presentedContentItem.mobileModal?.closeButton
+                                .label}
+                            {!presentedContentItem.mobileModal && 'Close'}
+                          </Text>
+                        )}
+                      </Pressable>
+                    </View>
+                  </View>
+                </SafeAreaView>
+              )}
 
-            {!isRemoteContentReady && (
-              <ActivityIndicator style={styles.loadingIndicator} />
-            )}
+              {!isRemoteContentReady && (
+                <ActivityIndicator style={styles.loadingIndicator} />
+              )}
 
-            <WebView
-              source={{ uri: presentedContentItem.viewUrl }}
-              style={!isRemoteContentReady ? styles.hidden : undefined}
-              onLoad={() => setIsRemoteContentReady(true)}
-              onMessage={(message) => {
-                try {
-                  const messageData = JSON.parse(message.nativeEvent.data);
-                  if (messageData.type === 'link-requested') {
-                    let isDefaultPrevented = false;
-                    props.onLinkRequested?.(messageData.url, {
-                      dismissContent,
-                      preventDefault: () => {
-                        isDefaultPrevented = true;
-                      },
-                    });
+              <WebView
+                source={{ uri: presentedContentItem.viewUrl }}
+                style={!isRemoteContentReady ? styles.hidden : undefined}
+                onLoad={() => setIsRemoteContentReady(true)}
+                onMessage={(message) => {
+                  try {
+                    const messageData = JSON.parse(message.nativeEvent.data);
+                    if (messageData.type === 'link-requested') {
+                      let isDefaultPrevented = false;
+                      props.onLinkRequested?.(messageData.url, {
+                        dismissContent,
+                        preventDefault: () => {
+                          isDefaultPrevented = true;
+                        },
+                      });
 
-                    if (!isDefaultPrevented) {
-                      Linking.openURL(messageData.url);
+                      if (!isDefaultPrevented) {
+                        Linking.openURL(messageData.url);
+                      }
                     }
-                  }
-                } catch {}
-              }}
-            />
-          </>
-        )}
-      </Modal>
+                  } catch {}
+                }}
+              />
+            </>
+          )}
+        </Modal>
+      )}
 
       {props.children}
     </WaveCxContext.Provider>
