@@ -3,6 +3,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -93,6 +94,7 @@ export const WaveCxProvider = (props: {
   maxFontSizeMultiplier?: number;
   headerTitleStyle?: TextStyle;
   headerCloseButtonStyle?: TextStyle;
+  onContentCacheChanged?: (content: TargetedContent[]) => void;
 }) => {
   const stateRef = useRef({
     isContentLoading: false,
@@ -123,7 +125,12 @@ export const WaveCxProvider = (props: {
     useState(false);
   const [isRemoteContentReady, setIsRemoteContentReady] = useState(false);
   const [, setContentCacheRevision] = useState(0);
-  const invalidateContentCache = () => setContentCacheRevision((r) => r + 1);
+  const onContentCacheChangedRef = useRef(props.onContentCacheChanged);
+  onContentCacheChangedRef.current = props.onContentCacheChanged;
+  const invalidateContentCache = useCallback(() => {
+    setContentCacheRevision((r) => r + 1);
+    onContentCacheChangedRef.current?.([...stateRef.current.contentCache]);
+  }, []);
 
   const presentedContentItem =
     activePopupContent ??
@@ -131,13 +138,19 @@ export const WaveCxProvider = (props: {
 
   const { initiateSession, organizationCode } = props;
 
+  useEffect(() => {
+    onContentCacheChangedRef.current?.([]);
+  }, []);
+
   const handleEvent = useCallback<EventHandler>(
     async (event) => {
       onContentDismissedCallback.current = undefined;
 
       if (event.type === 'session-started') {
-        stateRef.current.contentCache = [];
-        invalidateContentCache();
+        if (stateRef.current.contentCache.length > 0) {
+          stateRef.current.contentCache = [];
+          invalidateContentCache();
+        }
 
         const sessionToken = readSessionToken();
         if (sessionToken) {
@@ -150,7 +163,9 @@ export const WaveCxProvider = (props: {
               userId: event.userId,
             });
             stateRef.current.contentCache = targetedContentResult.content;
-            invalidateContentCache();
+            if (targetedContentResult.content.length > 0) {
+              invalidateContentCache();
+            }
           } catch {}
           stateRef.current.isContentLoading = false;
           if (stateRef.current.eventQueue.length > 0) {
@@ -180,7 +195,9 @@ export const WaveCxProvider = (props: {
               userId: event.userId,
             });
             stateRef.current.contentCache = targetedContentResult.content;
-            invalidateContentCache();
+            if (targetedContentResult.content.length > 0) {
+              invalidateContentCache();
+            }
           } catch {}
           stateRef.current.isContentLoading = false;
           if (stateRef.current.eventQueue.length > 0) {
@@ -204,7 +221,9 @@ export const WaveCxProvider = (props: {
               );
             }
             stateRef.current.contentCache = targetedContentResult.content;
-            invalidateContentCache();
+            if (targetedContentResult.content.length > 0) {
+              invalidateContentCache();
+            }
           } catch {}
           stateRef.current.isContentLoading = false;
           if (stateRef.current.eventQueue.length > 0) {
@@ -213,8 +232,10 @@ export const WaveCxProvider = (props: {
           }
         }
       } else if (event.type === 'session-ended') {
-        stateRef.current.contentCache = [];
-        invalidateContentCache();
+        if (stateRef.current.contentCache.length > 0) {
+          stateRef.current.contentCache = [];
+          invalidateContentCache();
+        }
         setActivePopupContent(undefined);
         setActiveUserTriggeredContent(undefined);
         clearSessionToken();
@@ -247,12 +268,15 @@ export const WaveCxProvider = (props: {
               c.presentationType === 'popup'
           )[0]
         );
+        const prevCacheLength = stateRef.current.contentCache.length;
         stateRef.current.contentCache = stateRef.current.contentCache.filter(
           (c) =>
             c.triggerPoint !== event.triggerPoint ||
             c.presentationType !== 'popup'
         );
-        invalidateContentCache();
+        if (stateRef.current.contentCache.length !== prevCacheLength) {
+          invalidateContentCache();
+        }
         setActiveUserTriggeredContent(
           stateRef.current.contentCache.filter(
             (c) =>
@@ -262,7 +286,7 @@ export const WaveCxProvider = (props: {
         );
       }
     },
-    [organizationCode, initiateSession, recordEvent]
+    [organizationCode, initiateSession, recordEvent, invalidateContentCache]
   );
 
   const hasContent = useCallback(

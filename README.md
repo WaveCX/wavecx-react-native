@@ -206,6 +206,7 @@ application tree.
 | maxFontSizeMultiplier  | number                              | maximum OS-level font scaling multiplier                                                                                              | false    |                                                                 |
 | headerTitleStyle       | TextStyle                           | styles to apply to modal header title                                                                                                 | false    |                                                                 |
 | headerCloseButtonStyle | TextStyle                           | styles to apply to the modal close button text                                                                                        | false    |                                                                 |
+| onContentCacheChanged  | function (TargetedContent[]) => void | callback fired whenever the content cache changes, receiving the current cache contents. Useful for syncing content state to an external store | false    |                                                                 |
 
 #### Types
 ```ts

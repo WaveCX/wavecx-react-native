@@ -710,4 +710,261 @@ describe(WaveCxProvider.name, () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('onContentCacheChanged', () => {
+    it('is called when content is fetched', async () => {
+      const onContentCacheChanged = jest.fn();
+      const mockContent = [
+        {
+          type: 'featurette' as const,
+          presentationType: 'popup' as const,
+          triggerPoint: 'trigger-point',
+          viewUrl: 'https://mock.content.com/embed',
+        },
+      ];
+
+      const Consumer = () => {
+        const { handleEvent } = useWaveCx();
+
+        useEffect(() => {
+          handleEvent({
+            type: 'session-started',
+            userId: 'test-id',
+          });
+        }, [handleEvent]);
+
+        return <></>;
+      };
+
+      render(
+        <WaveCxProvider
+          organizationCode={'org'}
+          onContentCacheChanged={onContentCacheChanged}
+          recordEvent={async () => ({
+            content: mockContent,
+          })}
+        >
+          <Consumer />
+        </WaveCxProvider>
+      );
+
+      await waitFor(() => {
+        expect(onContentCacheChanged).toHaveBeenCalledWith(mockContent);
+      });
+    });
+
+    it('is called with empty array when session ends', async () => {
+      const onContentCacheChanged = jest.fn();
+
+      const Consumer = () => {
+        const { handleEvent } = useWaveCx();
+
+        return (
+          <>
+            <Button
+              title={'Start'}
+              onPress={() =>
+                handleEvent({
+                  type: 'session-started',
+                  userId: 'test-id',
+                })
+              }
+            />
+            <Button
+              title={'End'}
+              onPress={() => handleEvent({ type: 'session-ended' })}
+            />
+          </>
+        );
+      };
+
+      const { getByText } = render(
+        <WaveCxProvider
+          organizationCode={'org'}
+          onContentCacheChanged={onContentCacheChanged}
+          recordEvent={async () => ({
+            content: [
+              {
+                type: 'featurette',
+                presentationType: 'popup',
+                triggerPoint: 'trigger-point',
+                viewUrl: 'https://mock.content.com/embed',
+              },
+            ],
+          })}
+        >
+          <Consumer />
+        </WaveCxProvider>
+      );
+
+      const user = userEvent.setup();
+      await user.press(getByText('Start'));
+      await waitFor(() => {
+        expect(onContentCacheChanged).toHaveBeenCalled();
+      });
+
+      onContentCacheChanged.mockClear();
+      await user.press(getByText('End'));
+      expect(onContentCacheChanged).toHaveBeenCalledWith([]);
+    });
+
+    it('is called with empty array on mount', async () => {
+      const onContentCacheChanged = jest.fn();
+
+      const Consumer = () => {
+        return <></>;
+      };
+
+      render(
+        <WaveCxProvider
+          organizationCode={'org'}
+          onContentCacheChanged={onContentCacheChanged}
+          recordEvent={async () => ({
+            content: [],
+          })}
+        >
+          <Consumer />
+        </WaveCxProvider>
+      );
+
+      await waitFor(() => {
+        expect(onContentCacheChanged).toHaveBeenCalledWith([]);
+      });
+    });
+
+    it('is not called again when session starts with no content returned', async () => {
+      const onContentCacheChanged = jest.fn();
+
+      const Consumer = () => {
+        const { handleEvent } = useWaveCx();
+
+        return (
+          <Button
+            title={'Start'}
+            onPress={() =>
+              handleEvent({
+                type: 'session-started',
+                userId: 'test-id',
+              })
+            }
+          />
+        );
+      };
+
+      const { getByText } = render(
+        <WaveCxProvider
+          organizationCode={'org'}
+          onContentCacheChanged={onContentCacheChanged}
+          recordEvent={async () => ({
+            content: [],
+          })}
+        >
+          <Consumer />
+        </WaveCxProvider>
+      );
+
+      await waitFor(() => {
+        expect(onContentCacheChanged).toHaveBeenCalledTimes(1);
+      });
+
+      onContentCacheChanged.mockClear();
+      const user = userEvent.setup();
+      await user.press(getByText('Start'));
+      await waitFor(() => {
+        expect(getByText('Start')).toBeVisible();
+      });
+      expect(onContentCacheChanged).not.toHaveBeenCalled();
+    });
+
+    it('is not called when session ends with an empty cache', async () => {
+      const onContentCacheChanged = jest.fn();
+
+      const Consumer = () => {
+        const { handleEvent } = useWaveCx();
+
+        return (
+          <Button
+            title={'End'}
+            onPress={() => handleEvent({ type: 'session-ended' })}
+          />
+        );
+      };
+
+      const { getByText } = render(
+        <WaveCxProvider
+          organizationCode={'org'}
+          onContentCacheChanged={onContentCacheChanged}
+          recordEvent={async () => ({
+            content: [],
+          })}
+        >
+          <Consumer />
+        </WaveCxProvider>
+      );
+
+      await waitFor(() => {
+        expect(onContentCacheChanged).toHaveBeenCalledTimes(1);
+      });
+
+      onContentCacheChanged.mockClear();
+      const user = userEvent.setup();
+      await user.press(getByText('End'));
+      expect(onContentCacheChanged).not.toHaveBeenCalled();
+    });
+
+    it('is not called on trigger point when no content is consumed', async () => {
+      const onContentCacheChanged = jest.fn();
+
+      const Consumer = () => {
+        const { handleEvent } = useWaveCx();
+
+        useEffect(() => {
+          handleEvent({
+            type: 'session-started',
+            userId: 'test-id',
+          });
+        }, [handleEvent]);
+
+        return (
+          <Button
+            title={'Trigger'}
+            onPress={() =>
+              handleEvent({
+                type: 'trigger-point',
+                triggerPoint: 'no-content-here',
+              })
+            }
+          />
+        );
+      };
+
+      const { getByText } = render(
+        <WaveCxProvider
+          organizationCode={'org'}
+          onContentCacheChanged={onContentCacheChanged}
+          recordEvent={async () => ({
+            content: [
+              {
+                type: 'featurette',
+                presentationType: 'button-triggered',
+                triggerPoint: 'other-point',
+                viewUrl: 'https://mock.content.com/embed',
+              },
+            ],
+          })}
+        >
+          <Consumer />
+        </WaveCxProvider>
+      );
+
+      const user = userEvent.setup();
+      await waitFor(() => {
+        expect(getByText('Trigger')).toBeVisible();
+      });
+
+      onContentCacheChanged.mockClear();
+      await user.press(getByText('Trigger'));
+      expect(onContentCacheChanged).not.toHaveBeenCalled();
+    });
+  });
 });
