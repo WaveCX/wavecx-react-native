@@ -102,21 +102,43 @@ When a trigger-point event is raised, WaveCX will check for and
 present any content set for that trigger point that is relevant
 for the current user.
 
+### Checking for Content
+The WaveCX context provides a `hasContent` method to check whether
+content exists for a given trigger point without presenting it.
+An optional second parameter filters by presentation type.
+
+`hasContent` is reactive — components that call it in render will
+automatically rerender when the content cache changes (e.g. after
+session start, trigger point consumption, or session end).
+
+```ts
+const { hasContent } = useWaveCx();
+
+// check if any content exists for a trigger point
+hasContent('trigger-point-code');
+
+// check for a specific presentation type
+hasContent('trigger-point-code', 'popup');
+hasContent('trigger-point-code', 'button-triggered');
+```
+
 ### User-Triggered Content
-The WaveCX context provides a boolean value `hasUserTriggeredContent`
-indicating if the current trigger point has user-triggered
-content available. To present this content, a `user-triggered-content`
-event should be fired:
+Use `hasContent` to check for user-triggered content availability
+and fire a `user-triggered-content` event to present it. The
+event accepts an optional `triggerPoint` parameter to specify
+which trigger point's content to show. If omitted, it falls back
+to the content set by the most recently fired trigger-point event.
 
 ```tsx
-const { handleEvent, hasUserTriggeredContent } = useWaveCx();
+const { handleEvent, hasContent } = useWaveCx();
 
 // in render
-{hasUserTriggeredContent && (
+{hasContent('trigger-point-code', 'button-triggered') && (
   <Button
     title={'User-Triggered Content'}
     onPress={() => handleEvent({
       type: 'user-triggered-content',
+      triggerPoint: 'trigger-point-code',
       onContentDismissed: () => {
         // optional callback when content closed by user
       }
@@ -124,6 +146,10 @@ const { handleEvent, hasUserTriggeredContent } = useWaveCx();
   />
 )}
 ```
+
+> **Deprecation notice:** `hasUserTriggeredContent` is deprecated.
+> It only reflects content state for the most recently fired trigger
+> point. Use `hasContent(triggerPoint, 'button-triggered')` instead.
 
 ### Session Ended Events
 If trigger points may still be reached in your application
@@ -180,6 +206,7 @@ application tree.
 | maxFontSizeMultiplier  | number                              | maximum OS-level font scaling multiplier                                                                                              | false    |                                                                 |
 | headerTitleStyle       | TextStyle                           | styles to apply to modal header title                                                                                                 | false    |                                                                 |
 | headerCloseButtonStyle | TextStyle                           | styles to apply to the modal close button text                                                                                        | false    |                                                                 |
+| onContentCacheChanged  | function (TargetedContent[]) => void | callback fired whenever the content cache changes, receiving the current cache contents. Useful for syncing content state to an external store | false    |                                                                 |
 
 #### Types
 ```ts

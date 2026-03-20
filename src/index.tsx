@@ -3,6 +3,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -48,6 +49,7 @@ export type Event =
     }
   | {
       type: 'user-triggered-content';
+      triggerPoint?: string;
       onContentDismissed?: () => void;
     };
 
@@ -71,7 +73,12 @@ export type LinkRequestHandler = (
 
 type WaveCxContext = {
   handleEvent: EventHandler;
+  /** @deprecated Use `hasContent(triggerPoint, 'button-triggered')` instead. */
   hasUserTriggeredContent: boolean;
+  hasContent: (
+    triggerPoint: string,
+    presentationType?: 'popup' | 'button-triggered'
+  ) => boolean;
 };
 
 const WaveCxContext = createContext<WaveCxContext | undefined>(undefined);
@@ -87,6 +94,7 @@ export const WaveCxProvider = (props: {
   maxFontSizeMultiplier?: number;
   headerTitleStyle?: TextStyle;
   headerCloseButtonStyle?: TextStyle;
+  onContentCacheChanged?: (content: TargetedContent[]) => void;
 }) => {
   const stateRef = useRef({
     isContentLoading: false,
@@ -116,6 +124,13 @@ export const WaveCxProvider = (props: {
   const [isUserTriggeredContentShown, setIsUserTriggeredContentShown] =
     useState(false);
   const [isRemoteContentReady, setIsRemoteContentReady] = useState(false);
+  const [, setContentCacheRevision] = useState(0);
+  const onContentCacheChangedRef = useRef(props.onContentCacheChanged);
+  onContentCacheChangedRef.current = props.onContentCacheChanged;
+  const invalidateContentCache = useCallback(() => {
+    setContentCacheRevision((r) => r + 1);
+    onContentCacheChangedRef.current?.([...stateRef.current.contentCache]);
+  }, []);
 
   const presentedContentItem =
     activePopupContent ??
@@ -123,12 +138,19 @@ export const WaveCxProvider = (props: {
 
   const { initiateSession, organizationCode } = props;
 
+  useEffect(() => {
+    onContentCacheChangedRef.current?.([]);
+  }, []);
+
   const handleEvent = useCallback<EventHandler>(
     async (event) => {
       onContentDismissedCallback.current = undefined;
 
       if (event.type === 'session-started') {
-        stateRef.current.contentCache = [];
+        if (stateRef.current.contentCache.length > 0) {
+          stateRef.current.contentCache = [];
+          invalidateContentCache();
+        }
 
         const sessionToken = readSessionToken();
         if (sessionToken) {
@@ -141,6 +163,9 @@ export const WaveCxProvider = (props: {
               userId: event.userId,
             });
             stateRef.current.contentCache = targetedContentResult.content;
+            if (targetedContentResult.content.length > 0) {
+              invalidateContentCache();
+            }
           } catch {}
           stateRef.current.isContentLoading = false;
           if (stateRef.current.eventQueue.length > 0) {
@@ -170,6 +195,9 @@ export const WaveCxProvider = (props: {
               userId: event.userId,
             });
             stateRef.current.contentCache = targetedContentResult.content;
+            if (targetedContentResult.content.length > 0) {
+              invalidateContentCache();
+            }
           } catch {}
           stateRef.current.isContentLoading = false;
           if (stateRef.current.eventQueue.length > 0) {
@@ -193,6 +221,9 @@ export const WaveCxProvider = (props: {
               );
             }
             stateRef.current.contentCache = targetedContentResult.content;
+            if (targetedContentResult.content.length > 0) {
+              invalidateContentCache();
+            }
           } catch {}
           stateRef.current.isContentLoading = false;
           if (stateRef.current.eventQueue.length > 0) {
@@ -201,11 +232,23 @@ export const WaveCxProvider = (props: {
           }
         }
       } else if (event.type === 'session-ended') {
-        stateRef.current.contentCache = [];
+        if (stateRef.current.contentCache.length > 0) {
+          stateRef.current.contentCache = [];
+          invalidateContentCache();
+        }
         setActivePopupContent(undefined);
         setActiveUserTriggeredContent(undefined);
         clearSessionToken();
       } else if (event.type === 'user-triggered-content') {
+        if (event.triggerPoint) {
+          const content = stateRef.current.contentCache.find(
+            (c) =>
+              c.triggerPoint === event.triggerPoint &&
+              c.presentationType === 'button-triggered'
+          );
+          if (!content) return;
+          setActiveUserTriggeredContent(content);
+        }
         setIsUserTriggeredContentShown(true);
         onContentDismissedCallback.current = event.onContentDismissed;
       } else if (event.type === 'trigger-point') {
@@ -226,11 +269,15 @@ export const WaveCxProvider = (props: {
               c.presentationType === 'popup'
           )[0]
         );
+        const prevCacheLength = stateRef.current.contentCache.length;
         stateRef.current.contentCache = stateRef.current.contentCache.filter(
           (c) =>
             c.triggerPoint !== event.triggerPoint ||
             c.presentationType !== 'popup'
         );
+        if (stateRef.current.contentCache.length !== prevCacheLength) {
+          invalidateContentCache();
+        }
         setActiveUserTriggeredContent(
           stateRef.current.contentCache.filter(
             (c) =>
@@ -240,7 +287,22 @@ export const WaveCxProvider = (props: {
         );
       }
     },
-    [organizationCode, initiateSession, recordEvent]
+    [organizationCode, initiateSession, recordEvent, invalidateContentCache]
+  );
+
+  const hasContent = useCallback(
+    (
+      triggerPoint: string,
+      presentationType?: 'popup' | 'button-triggered'
+    ): boolean => {
+      return stateRef.current.contentCache.some(
+        (c) =>
+          c.triggerPoint === triggerPoint &&
+          (presentationType === undefined ||
+            c.presentationType === presentationType)
+      );
+    },
+    []
   );
 
   const dismissContent = () => {
@@ -255,6 +317,7 @@ export const WaveCxProvider = (props: {
       value={{
         handleEvent,
         hasUserTriggeredContent: activeUserTriggeredContent !== undefined,
+        hasContent,
       }}
     >
       {presentedContentItem && (
