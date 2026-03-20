@@ -246,6 +246,7 @@ export const WaveCxProvider = (props: {
               c.triggerPoint === event.triggerPoint &&
               c.presentationType === 'button-triggered'
           );
+          if (!content) return;
           setActiveUserTriggeredContent(content);
         }
         setIsUserTriggeredContentShown(true);

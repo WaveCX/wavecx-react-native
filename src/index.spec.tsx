@@ -364,7 +364,7 @@ describe(WaveCxProvider.name, () => {
 
   it('presents user-triggered content for a specific trigger point', async () => {
     const Consumer = () => {
-      const { handleEvent } = useWaveCx();
+      const { handleEvent, hasContent } = useWaveCx();
 
       useEffect(() => {
         handleEvent({
@@ -373,7 +373,7 @@ describe(WaveCxProvider.name, () => {
         });
       }, [handleEvent]);
 
-      return (
+      return hasContent('specific-point', 'button-triggered') ? (
         <Button
           title={'Show Content'}
           onPress={() =>
@@ -383,6 +383,8 @@ describe(WaveCxProvider.name, () => {
             })
           }
         />
+      ) : (
+        <></>
       );
     };
 
@@ -498,12 +500,15 @@ describe(WaveCxProvider.name, () => {
         }, [handleEvent]);
 
         return (
-          <Button
-            title={'Check'}
-            onPress={() => {
-              result = hasContent('check-point');
-            }}
-          />
+          <>
+            {hasContent('check-point') && <Text>Ready</Text>}
+            <Button
+              title={'Check'}
+              onPress={() => {
+                result = hasContent('check-point');
+              }}
+            />
+          </>
         );
       };
 
@@ -527,7 +532,7 @@ describe(WaveCxProvider.name, () => {
 
       const user = userEvent.setup();
       await waitFor(() => {
-        expect(getByText('Check')).toBeVisible();
+        expect(getByText('Ready')).toBeVisible();
       });
       await user.press(getByText('Check'));
       expect(result).toBe(true);
@@ -535,6 +540,7 @@ describe(WaveCxProvider.name, () => {
 
     it('returns false when no content exists for a trigger point', async () => {
       let result = true;
+      const onContentCacheChanged = jest.fn();
 
       const Consumer = () => {
         const { handleEvent, hasContent } = useWaveCx();
@@ -543,10 +549,6 @@ describe(WaveCxProvider.name, () => {
           handleEvent({
             type: 'session-started',
             userId: 'test-id',
-          });
-          handleEvent({
-            type: 'trigger-point',
-            triggerPoint: 'check-point',
           });
         }, [handleEvent]);
 
@@ -563,6 +565,7 @@ describe(WaveCxProvider.name, () => {
       const { getByText } = render(
         <WaveCxProvider
           organizationCode={'org'}
+          onContentCacheChanged={onContentCacheChanged}
           recordEvent={async () => ({
             content: [
               {
@@ -578,10 +581,15 @@ describe(WaveCxProvider.name, () => {
         </WaveCxProvider>
       );
 
-      const user = userEvent.setup();
       await waitFor(() => {
-        expect(getByText('Check')).toBeVisible();
+        expect(onContentCacheChanged).toHaveBeenLastCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({ triggerPoint: 'check-point' }),
+          ])
+        );
       });
+
+      const user = userEvent.setup();
       await user.press(getByText('Check'));
       expect(result).toBe(false);
     });
@@ -605,16 +613,19 @@ describe(WaveCxProvider.name, () => {
         }, [handleEvent]);
 
         return (
-          <Button
-            title={'Check'}
-            onPress={() => {
-              popupResult = hasContent('check-point', 'popup');
-              buttonTriggeredResult = hasContent(
-                'check-point',
-                'button-triggered'
-              );
-            }}
-          />
+          <>
+            {hasContent('check-point') && <Text>Ready</Text>}
+            <Button
+              title={'Check'}
+              onPress={() => {
+                popupResult = hasContent('check-point', 'popup');
+                buttonTriggeredResult = hasContent(
+                  'check-point',
+                  'button-triggered'
+                );
+              }}
+            />
+          </>
         );
       };
 
@@ -638,7 +649,7 @@ describe(WaveCxProvider.name, () => {
 
       const user = userEvent.setup();
       await waitFor(() => {
-        expect(getByText('Check')).toBeVisible();
+        expect(getByText('Ready')).toBeVisible();
       });
       await user.press(getByText('Check'));
       expect(popupResult).toBe(false);
@@ -800,7 +811,14 @@ describe(WaveCxProvider.name, () => {
       const user = userEvent.setup();
       await user.press(getByText('Start'));
       await waitFor(() => {
-        expect(onContentCacheChanged).toHaveBeenCalled();
+        expect(onContentCacheChanged).toHaveBeenCalledWith([
+          {
+            type: 'featurette',
+            presentationType: 'popup',
+            triggerPoint: 'trigger-point',
+            viewUrl: 'https://mock.content.com/embed',
+          },
+        ]);
       });
 
       onContentCacheChanged.mockClear();
