@@ -152,7 +152,7 @@ export const WaveCxProvider = (props: {
           invalidateContentCache();
         }
 
-        const sessionToken = readSessionToken();
+        const sessionToken = readSessionToken(event.userId);
         if (sessionToken) {
           try {
             stateRef.current.isContentLoading = true;
@@ -186,7 +186,8 @@ export const WaveCxProvider = (props: {
             });
             storeSessionToken(
               sessionResult.sessionToken,
-              sessionResult.expiresIn ?? 3600
+              sessionResult.expiresIn ?? 3600,
+              event.userId
             );
             const targetedContentResult = await recordEvent({
               organizationCode: organizationCode,
@@ -217,7 +218,8 @@ export const WaveCxProvider = (props: {
             if (targetedContentResult.sessionToken) {
               storeSessionToken(
                 targetedContentResult.sessionToken,
-                targetedContentResult.expiresIn ?? 3600
+                targetedContentResult.expiresIn ?? 3600,
+                event.userId
               );
             }
             stateRef.current.contentCache = targetedContentResult.content;
