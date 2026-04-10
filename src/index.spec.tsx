@@ -737,6 +737,8 @@ describe(WaveCxProvider.name, () => {
             viewUrl: 'https://mock.content.com/embed',
           },
         ],
+        sessionToken: 'token-a',
+        expiresIn: 3600,
       }));
 
       const Consumer = () => {
@@ -916,9 +918,16 @@ describe(WaveCxProvider.name, () => {
         expect(recordEvent).toHaveBeenCalled();
       });
 
+      recordEvent.mockClear();
       onContentCacheChanged.mockClear();
       await user.press(getByText('Start User B'));
       await waitFor(() => {
+        expect(recordEvent).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'session-started',
+            userId: 'user-b',
+          })
+        );
         expect(onContentCacheChanged).toHaveBeenCalledWith(
           expect.arrayContaining([
             expect.objectContaining({
