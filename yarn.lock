@@ -14984,6 +14984,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-safe-area-context@npm:4.8.2":
+  version: 4.8.2
+  resolution: "react-native-safe-area-context@npm:4.8.2"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 929eaa5ee522f712e7bfabd0f22908f033918d030c932ddf6a83e4315bc781f7aa44e315806dc8130f75619f09951f3237082f720f4fa65a6670469886cf9735
+  languageName: node
+  linkType: hard
+
 "react-native-web@npm:~0.19.6":
   version: 0.19.11
   resolution: "react-native-web@npm:0.19.11"
@@ -17880,6 +17890,7 @@ __metadata:
     react: 18.2.0
     react-dom: 18.2.0
     react-native: 0.73.6
+    react-native-safe-area-context: 4.8.2
     react-native-web: ~0.19.6
     react-native-webview: 13.6.4
   languageName: unknown
@@ -17914,6 +17925,7 @@ __metadata:
   peerDependencies:
     react: "*"
     react-native: "*"
+    react-native-safe-area-context: ">=4.0.0"
     react-native-webview: ^13.0.0
   languageName: unknown
   linkType: soft
