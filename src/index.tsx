@@ -14,12 +14,12 @@ import {
   Linking,
   Modal,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   type TextStyle,
   View,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import WebView from 'react-native-webview';
 
 import {
@@ -152,7 +152,7 @@ export const WaveCxProvider = (props: {
           invalidateContentCache();
         }
 
-        const sessionToken = readSessionToken();
+        const sessionToken = readSessionToken(event.userId);
         if (sessionToken) {
           try {
             stateRef.current.isContentLoading = true;
@@ -186,7 +186,8 @@ export const WaveCxProvider = (props: {
             });
             storeSessionToken(
               sessionResult.sessionToken,
-              sessionResult.expiresIn ?? 3600
+              sessionResult.expiresIn ?? 3600,
+              event.userId
             );
             const targetedContentResult = await recordEvent({
               organizationCode: organizationCode,
@@ -217,7 +218,8 @@ export const WaveCxProvider = (props: {
             if (targetedContentResult.sessionToken) {
               storeSessionToken(
                 targetedContentResult.sessionToken,
-                targetedContentResult.expiresIn ?? 3600
+                targetedContentResult.expiresIn ?? 3600,
+                event.userId
               );
             }
             stateRef.current.contentCache = targetedContentResult.content;
@@ -330,8 +332,19 @@ export const WaveCxProvider = (props: {
           animationType={'slide'}
         >
           {presentedContentItem && (
-            <>
-              {presentedContentItem.mobileModal?.type !== 'overFullScreen' && (
+            <SafeAreaProvider>
+              <SafeAreaView
+                style={{
+                  flex: 1,
+                  ...(presentedContentItem.mobileModal?.type ===
+                    'overFullScreen' && {
+                    backgroundColor:
+                      presentedContentItem.mobileModal?.headerColor ??
+                      '#fafafa',
+                  }),
+                }}
+                edges={['top']}
+              >
                 <View
                   style={{
                     ...styles.header,
@@ -372,81 +385,40 @@ export const WaveCxProvider = (props: {
                     </Pressable>
                   </View>
                 </View>
-              )}
-              {presentedContentItem.mobileModal?.type === 'overFullScreen' && (
-                <SafeAreaView
-                  style={{
-                    backgroundColor:
-                      presentedContentItem.mobileModal?.headerColor,
-                  }}
-                >
-                  <View
-                    style={{
-                      ...styles.header,
-                      backgroundColor:
-                        presentedContentItem.mobileModal?.headerColor,
+
+                <View style={styles.contentArea}>
+                  {!isRemoteContentReady && (
+                    <ActivityIndicator style={styles.loadingIndicator} />
+                  )}
+
+                  <WebView
+                    source={{ uri: presentedContentItem.viewUrl }}
+                    style={!isRemoteContentReady ? styles.hidden : undefined}
+                    onLoad={() => setIsRemoteContentReady(true)}
+                    onMessage={(message) => {
+                      try {
+                        const messageData = JSON.parse(
+                          message.nativeEvent.data
+                        );
+                        if (messageData.type === 'link-requested') {
+                          let isDefaultPrevented = false;
+                          props.onLinkRequested?.(messageData.url, {
+                            dismissContent,
+                            preventDefault: () => {
+                              isDefaultPrevented = true;
+                            },
+                          });
+
+                          if (!isDefaultPrevented) {
+                            Linking.openURL(messageData.url);
+                          }
+                        }
+                      } catch {}
                     }}
-                  >
-                    <View style={styles.headerStart} />
-                    <View>
-                      <Text style={styles.headerTitle}>
-                        {presentedContentItem.mobileModal?.title ??
-                          `What's New`}
-                      </Text>
-                    </View>
-                    <View style={styles.closeButtonContainer}>
-                      <Pressable onPress={dismissContent} aria-label={'Close'}>
-                        {presentedContentItem.mobileModal?.closeButton.style ===
-                          'x' && (
-                          <View style={styles.close}>
-                            <View style={styles.closeIcon1} />
-                            <View style={styles.closeIcon2} />
-                          </View>
-                        )}
-                        {presentedContentItem.mobileModal?.closeButton.style !==
-                          'x' && (
-                          <Text>
-                            {presentedContentItem.mobileModal?.closeButton
-                              .style === 'text' &&
-                              presentedContentItem.mobileModal?.closeButton
-                                .label}
-                            {!presentedContentItem.mobileModal && 'Close'}
-                          </Text>
-                        )}
-                      </Pressable>
-                    </View>
-                  </View>
-                </SafeAreaView>
-              )}
-
-              {!isRemoteContentReady && (
-                <ActivityIndicator style={styles.loadingIndicator} />
-              )}
-
-              <WebView
-                source={{ uri: presentedContentItem.viewUrl }}
-                style={!isRemoteContentReady ? styles.hidden : undefined}
-                onLoad={() => setIsRemoteContentReady(true)}
-                onMessage={(message) => {
-                  try {
-                    const messageData = JSON.parse(message.nativeEvent.data);
-                    if (messageData.type === 'link-requested') {
-                      let isDefaultPrevented = false;
-                      props.onLinkRequested?.(messageData.url, {
-                        dismissContent,
-                        preventDefault: () => {
-                          isDefaultPrevented = true;
-                        },
-                      });
-
-                      if (!isDefaultPrevented) {
-                        Linking.openURL(messageData.url);
-                      }
-                    }
-                  } catch {}
-                }}
-              />
-            </>
+                  />
+                </View>
+              </SafeAreaView>
+            </SafeAreaProvider>
           )}
         </Modal>
       )}
@@ -457,6 +429,10 @@ export const WaveCxProvider = (props: {
 };
 
 const styles = StyleSheet.create({
+  contentArea: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
   loadingIndicator: {
     marginTop: '10%',
   },

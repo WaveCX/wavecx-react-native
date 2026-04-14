@@ -5,8 +5,12 @@ import { render, userEvent, waitFor } from '@testing-library/react-native';
 import '@testing-library/react-native/extend-expect';
 
 import { useWaveCx, WaveCxProvider } from './index';
+import { clearSessionToken } from './sessions';
 
 describe(WaveCxProvider.name, () => {
+  afterEach(() => {
+    clearSessionToken();
+  });
   it('renders provided child elements', () => {
     const { getByText } = render(
       <WaveCxProvider organizationCode={'org'}>
@@ -719,6 +723,219 @@ describe(WaveCxProvider.name, () => {
       await user.press(getByText('End'));
       await user.press(getByText('Check'));
       expect(result).toBe(false);
+    });
+  });
+
+  describe('session-started with different userId', () => {
+    it('initiates a fresh session when userId changes without session-ended', async () => {
+      const recordEvent = jest.fn(async () => ({
+        content: [
+          {
+            type: 'featurette' as const,
+            presentationType: 'popup' as const,
+            triggerPoint: 'trigger-point',
+            viewUrl: 'https://mock.content.com/embed',
+          },
+        ],
+        sessionToken: 'token-a',
+        expiresIn: 3600,
+      }));
+
+      const Consumer = () => {
+        const { handleEvent } = useWaveCx();
+
+        return (
+          <>
+            <Button
+              title={'Start User A'}
+              onPress={() =>
+                handleEvent({
+                  type: 'session-started',
+                  userId: 'user-a',
+                })
+              }
+            />
+            <Button
+              title={'Start User B'}
+              onPress={() =>
+                handleEvent({
+                  type: 'session-started',
+                  userId: 'user-b',
+                })
+              }
+            />
+          </>
+        );
+      };
+
+      const { getByText } = render(
+        <WaveCxProvider organizationCode={'org'} recordEvent={recordEvent}>
+          <Consumer />
+        </WaveCxProvider>
+      );
+
+      const user = userEvent.setup();
+      await user.press(getByText('Start User A'));
+      await waitFor(() => {
+        expect(recordEvent).toHaveBeenCalledWith(
+          expect.objectContaining({ type: 'session-started', userId: 'user-a' })
+        );
+      });
+
+      recordEvent.mockClear();
+      await user.press(getByText('Start User B'));
+      await waitFor(() => {
+        expect(recordEvent).toHaveBeenCalledWith(
+          expect.objectContaining({ type: 'session-started', userId: 'user-b' })
+        );
+      });
+    });
+
+    it('reuses session token when same userId starts a new session', async () => {
+      const recordEvent = jest.fn(async () => ({
+        content: [
+          {
+            type: 'featurette' as const,
+            presentationType: 'popup' as const,
+            triggerPoint: 'trigger-point',
+            viewUrl: 'https://mock.content.com/embed',
+          },
+        ],
+        sessionToken: 'test-token',
+        expiresIn: 3600,
+      }));
+
+      const Consumer = () => {
+        const { handleEvent } = useWaveCx();
+
+        return (
+          <Button
+            title={'Start'}
+            onPress={() =>
+              handleEvent({
+                type: 'session-started',
+                userId: 'same-user',
+              })
+            }
+          />
+        );
+      };
+
+      const { getByText } = render(
+        <WaveCxProvider organizationCode={'org'} recordEvent={recordEvent}>
+          <Consumer />
+        </WaveCxProvider>
+      );
+
+      const user = userEvent.setup();
+      await user.press(getByText('Start'));
+      await waitFor(() => {
+        expect(recordEvent).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'session-started',
+            userId: 'same-user',
+          })
+        );
+      });
+
+      recordEvent.mockClear();
+      await user.press(getByText('Start'));
+      await waitFor(() => {
+        expect(recordEvent).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'session-refresh',
+            userId: 'same-user',
+          })
+        );
+      });
+    });
+
+    it('fetches new content for the new user when userId changes', async () => {
+      const onContentCacheChanged = jest.fn();
+
+      const recordEvent = jest.fn(async (params: { userId?: string }) => {
+        if (params.userId === 'user-b') {
+          return {
+            content: [
+              {
+                type: 'featurette' as const,
+                presentationType: 'popup' as const,
+                triggerPoint: 'trigger-point',
+                viewUrl: 'https://mock.content.com/user-b-content',
+              },
+            ],
+            sessionToken: 'token-b',
+            expiresIn: 3600,
+          };
+        }
+        return {
+          content: [],
+          sessionToken: 'token-a',
+          expiresIn: 3600,
+        };
+      });
+
+      const Consumer = () => {
+        const { handleEvent } = useWaveCx();
+
+        return (
+          <>
+            <Button
+              title={'Start User A'}
+              onPress={() =>
+                handleEvent({
+                  type: 'session-started',
+                  userId: 'user-a',
+                })
+              }
+            />
+            <Button
+              title={'Start User B'}
+              onPress={() =>
+                handleEvent({
+                  type: 'session-started',
+                  userId: 'user-b',
+                })
+              }
+            />
+          </>
+        );
+      };
+
+      const { getByText } = render(
+        <WaveCxProvider
+          organizationCode={'org'}
+          onContentCacheChanged={onContentCacheChanged}
+          recordEvent={recordEvent}
+        >
+          <Consumer />
+        </WaveCxProvider>
+      );
+
+      const user = userEvent.setup();
+      await user.press(getByText('Start User A'));
+      await waitFor(() => {
+        expect(recordEvent).toHaveBeenCalled();
+      });
+
+      recordEvent.mockClear();
+      onContentCacheChanged.mockClear();
+      await user.press(getByText('Start User B'));
+      await waitFor(() => {
+        expect(recordEvent).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'session-started',
+            userId: 'user-b',
+          })
+        );
+        expect(onContentCacheChanged).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              viewUrl: 'https://mock.content.com/user-b-content',
+            }),
+          ])
+        );
+      });
     });
   });
 
