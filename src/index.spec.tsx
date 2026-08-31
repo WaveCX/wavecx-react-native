@@ -1,10 +1,16 @@
 import * as React from 'react';
 import { useEffect } from 'react';
 import { Button, Switch, Text } from 'react-native';
-import { render, userEvent, waitFor } from '@testing-library/react-native';
+import {
+  fireEvent,
+  render,
+  userEvent,
+  waitFor,
+} from '@testing-library/react-native';
 import '@testing-library/react-native/extend-expect';
 
 import { useWaveCx, WaveCxProvider } from './index';
+import type { TargetedContent } from './targeted-content';
 import { clearSessionToken } from './sessions';
 
 describe(WaveCxProvider.name, () => {
@@ -1200,6 +1206,202 @@ describe(WaveCxProvider.name, () => {
       onContentCacheChanged.mockClear();
       await user.press(getByText('Trigger'));
       expect(onContentCacheChanged).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('content messages', () => {
+    const viewUrl = 'https://mock.content.com/embed';
+    const siblingUrl = 'https://mock.content.com/sibling';
+
+    const dismissMessage = (extra: object = {}) =>
+      JSON.stringify({
+        source: 'wavecx',
+        type: 'dismiss-content',
+        ...extra,
+      });
+
+    const renderWithContent = (options: {
+      content?: TargetedContent[];
+      onContentDismissed?: () => void;
+      onContentCacheChanged?: (content: TargetedContent[]) => void;
+    }) => {
+      const Consumer = () => {
+        const { handleEvent, hasContent } = useWaveCx();
+
+        useEffect(() => {
+          handleEvent({ type: 'session-started', userId: 'test-id' });
+        }, [handleEvent]);
+
+        return hasContent('trigger-point', 'button-triggered') ? (
+          <Button
+            title={'Show Content'}
+            onPress={() =>
+              handleEvent({
+                type: 'user-triggered-content',
+                triggerPoint: 'trigger-point',
+                onContentDismissed: options.onContentDismissed,
+              })
+            }
+          />
+        ) : (
+          <></>
+        );
+      };
+
+      return render(
+        <WaveCxProvider
+          organizationCode={'org'}
+          onContentCacheChanged={options.onContentCacheChanged}
+          recordEvent={async () => ({
+            content: options.content ?? [
+              {
+                type: 'featurette',
+                presentationType: 'button-triggered',
+                triggerPoint: 'trigger-point',
+                viewUrl,
+              },
+            ],
+          })}
+        >
+          <Consumer />
+        </WaveCxProvider>
+      );
+    };
+
+    const openContent = async (screen: ReturnType<typeof render>) => {
+      const user = userEvent.setup();
+      await waitFor(() => {
+        expect(screen.getByText('Show Content')).toBeVisible();
+      });
+      await user.press(screen.getByText('Show Content'));
+      await waitFor(() => {
+        expect(screen.getByText(`What's New`)).toBeVisible();
+      });
+    };
+
+    it('closes the modal when content requests dismissal', async () => {
+      const screen = renderWithContent({});
+      await openContent(screen);
+
+      fireEvent(screen.getByTestId('wavecx-webview'), 'message', {
+        nativeEvent: { data: dismissMessage({ reason: 'user-closed' }) },
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText(`What's New`)).toBeNull();
+      });
+    });
+
+    it('removes content from the session cache when suppressForSession is set', async () => {
+      const screen = renderWithContent({});
+      await openContent(screen);
+
+      fireEvent(screen.getByTestId('wavecx-webview'), 'message', {
+        nativeEvent: {
+          data: dismissMessage({
+            reason: 'no-show-again',
+            suppressForSession: true,
+          }),
+        },
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText(`What's New`)).toBeNull();
+      });
+      expect(screen.queryByText('Show Content')).toBeNull();
+    });
+
+    it('keeps content in the session cache when suppressForSession is not set', async () => {
+      const screen = renderWithContent({});
+      await openContent(screen);
+
+      fireEvent(screen.getByTestId('wavecx-webview'), 'message', {
+        nativeEvent: { data: dismissMessage({ reason: 'user-closed' }) },
+      });
+
+      // A plain close (e.g. a "Got it" button) must not hide the entry point
+      await waitFor(() => {
+        expect(screen.getByText('Show Content')).toBeVisible();
+      });
+    });
+
+    it('suppresses only the dismissed content, not siblings at the same trigger point', async () => {
+      const onContentCacheChanged = jest.fn();
+      const screen = renderWithContent({
+        onContentCacheChanged,
+        content: [
+          {
+            type: 'featurette',
+            presentationType: 'button-triggered',
+            triggerPoint: 'trigger-point',
+            viewUrl,
+          },
+          {
+            type: 'featurette',
+            presentationType: 'button-triggered',
+            triggerPoint: 'trigger-point',
+            viewUrl: siblingUrl,
+          },
+        ],
+      });
+      await openContent(screen);
+
+      fireEvent(screen.getByTestId('wavecx-webview'), 'message', {
+        nativeEvent: {
+          data: dismissMessage({
+            reason: 'no-show-again',
+            suppressForSession: true,
+          }),
+        },
+      });
+
+      await waitFor(() => {
+        expect(onContentCacheChanged).toHaveBeenCalledWith([
+          expect.objectContaining({ viewUrl: siblingUrl }),
+        ]);
+      });
+    });
+
+    it('invokes the dismiss callback registered by the host', async () => {
+      const onContentDismissed = jest.fn();
+      const screen = renderWithContent({ onContentDismissed });
+      await openContent(screen);
+
+      fireEvent(screen.getByTestId('wavecx-webview'), 'message', {
+        nativeEvent: {
+          data: dismissMessage({
+            reason: 'no-show-again',
+            suppressForSession: true,
+          }),
+        },
+      });
+
+      await waitFor(() => {
+        expect(onContentDismissed).toHaveBeenCalled();
+      });
+    });
+
+    it('ignores messages that are not WaveCX dismiss messages', async () => {
+      const screen = renderWithContent({});
+      await openContent(screen);
+
+      const webView = screen.getByTestId('wavecx-webview');
+      fireEvent(webView, 'message', {
+        nativeEvent: { data: JSON.stringify({ type: 'dismiss-content' }) },
+      });
+      fireEvent(webView, 'message', {
+        nativeEvent: {
+          data: JSON.stringify({ source: 'wavecx', type: 'something-else' }),
+        },
+      });
+      fireEvent(webView, 'message', {
+        nativeEvent: { data: JSON.stringify('not-an-object') },
+      });
+      fireEvent(webView, 'message', {
+        nativeEvent: { data: 'not-json-at-all' },
+      });
+
+      expect(screen.getByText(`What's New`)).toBeVisible();
     });
   });
 });
