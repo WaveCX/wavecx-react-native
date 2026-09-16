@@ -31,3 +31,27 @@ export const isDismissContentMessage = (
     message.type === 'dismiss-content'
   );
 };
+
+/**
+ * Query param content reads to learn which content messages this SDK acts on, so it can hide
+ * controls an older SDK would ignore (e.g. a close button). Shared contract with the web SDK.
+ */
+export const contentCapabilitiesParam = 'wcxCapabilities';
+export const contentCapabilities = ['dismiss-content'] as const;
+
+/**
+ * Appends this SDK's capabilities to a content URL. Apply it when loading content, never to
+ * the cached URL: session suppression matches cache entries on the exact viewUrl. Built with
+ * string handling because React Native's URL does not implement searchParams.
+ */
+export const withContentCapabilities = (viewUrl: string): string => {
+  if (!/^https?:\/\//i.test(viewUrl)) {
+    return viewUrl;
+  }
+  const hashIndex = viewUrl.indexOf('#');
+  const base = hashIndex === -1 ? viewUrl : viewUrl.slice(0, hashIndex);
+  const hash = hashIndex === -1 ? '' : viewUrl.slice(hashIndex);
+  const separator = !base.includes('?') ? '?' : /[?&]$/.test(base) ? '' : '&';
+  const value = encodeURIComponent(contentCapabilities.join(','));
+  return `${base}${separator}${contentCapabilitiesParam}=${value}${hash}`;
+};

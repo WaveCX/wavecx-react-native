@@ -1292,6 +1292,15 @@ describe(WaveCxProvider.name, () => {
       });
     });
 
+    it('announces dismiss-content support on the loaded URL', async () => {
+      const screen = renderWithContent({});
+      await openContent(screen);
+
+      expect(screen.getByTestId('wavecx-webview').props.source).toEqual({
+        uri: `${viewUrl}?wcxCapabilities=dismiss-content`,
+      });
+    });
+
     it('removes content from the session cache when suppressForSession is set', async () => {
       const screen = renderWithContent({});
       await openContent(screen);

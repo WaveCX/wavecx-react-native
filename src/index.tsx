@@ -33,7 +33,10 @@ import {
   storeSessionToken,
   clearSessionToken,
 } from './sessions';
-import { isDismissContentMessage } from './content-messages';
+import {
+  isDismissContentMessage,
+  withContentCapabilities,
+} from './content-messages';
 
 export {
   type ContentMessage,
@@ -417,7 +420,11 @@ export const WaveCxProvider = (props: {
                   )}
 
                   <WebView
-                    source={{ uri: presentedContentItem.viewUrl }}
+                    source={{
+                      uri: withContentCapabilities(
+                        presentedContentItem.viewUrl
+                      ),
+                    }}
                     style={!isRemoteContentReady ? styles.hidden : undefined}
                     onLoad={() => setIsRemoteContentReady(true)}
                     onMessage={(message) => {
