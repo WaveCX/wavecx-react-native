@@ -33,6 +33,16 @@ import {
   storeSessionToken,
   clearSessionToken,
 } from './sessions';
+import {
+  isDismissContentMessage,
+  withContentCapabilities,
+} from './content-messages';
+
+export {
+  type ContentMessage,
+  type DismissContentMessage,
+  contentMessageSource,
+} from './content-messages';
 
 export type Event =
   | {
@@ -307,6 +317,24 @@ export const WaveCxProvider = (props: {
     []
   );
 
+  const suppressContentForSession = useCallback(
+    (content: TargetedContent) => {
+      const prevCacheLength = stateRef.current.contentCache.length;
+      stateRef.current.contentCache = stateRef.current.contentCache.filter(
+        // View URL is unique per delivery, so sibling content for the same
+        // trigger point is left intact
+        (c) => c.viewUrl !== content.viewUrl
+      );
+      if (stateRef.current.contentCache.length !== prevCacheLength) {
+        invalidateContentCache();
+      }
+      setActiveUserTriggeredContent((current) =>
+        current?.viewUrl === content.viewUrl ? undefined : current
+      );
+    },
+    [invalidateContentCache]
+  );
+
   const dismissContent = () => {
     setIsUserTriggeredContentShown(false);
     setActivePopupContent(undefined);
@@ -392,7 +420,11 @@ export const WaveCxProvider = (props: {
                   )}
 
                   <WebView
-                    source={{ uri: presentedContentItem.viewUrl }}
+                    source={{
+                      uri: withContentCapabilities(
+                        presentedContentItem.viewUrl
+                      ),
+                    }}
                     style={!isRemoteContentReady ? styles.hidden : undefined}
                     onLoad={() => setIsRemoteContentReady(true)}
                     onMessage={(message) => {
@@ -400,6 +432,13 @@ export const WaveCxProvider = (props: {
                         const messageData = JSON.parse(
                           message.nativeEvent.data
                         );
+                        if (isDismissContentMessage(messageData)) {
+                          if (messageData.suppressForSession) {
+                            suppressContentForSession(presentedContentItem);
+                          }
+                          dismissContent();
+                          return;
+                        }
                         if (messageData.type === 'link-requested') {
                           let isDefaultPrevented = false;
                           props.onLinkRequested?.(messageData.url, {
